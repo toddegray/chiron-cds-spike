@@ -1,0 +1,13 @@
+{
+  "name": "metformin_healthy_no_fire",
+  "description": "45yo female, creatinine 0.8 mg/dL → eGFR well above 30 → no alert.",
+  "patient": { "id": "p2", "age_years": 45, "sex": "F" },
+  "medications": [
+    { "name": "metformin", "active": true }
+  ],
+  "labs": [
+    { "name": "creatinine", "value": 0.8, "unit": "mg/dL" }
+  ],
+  "conditions": [],
+  "expect_alert": null
+}

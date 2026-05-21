@@ -1,0 +1,9 @@
+{
+  "name": "cha2ds2_below_threshold",
+  "description": "55yo male with no risk factors → score 0 → no alert.",
+  "patient": { "id": "p5", "age_years": 55, "sex": "M" },
+  "medications": [],
+  "labs": [],
+  "conditions": [],
+  "expect_alert": null
+}

@@ -1,0 +1,17 @@
+{
+  "name": "cha2ds2_high_risk_elderly_female",
+  "description": "78yo female with HTN, diabetes → score ≥4 → high-risk alert (High severity).",
+  "patient": { "id": "p4", "age_years": 78, "sex": "F" },
+  "medications": [],
+  "labs": [],
+  "conditions": [
+    { "name": "hypertension", "active": true },
+    { "name": "diabetes", "active": true }
+  ],
+  "expect_alert": {
+    "rule_id": "cha2ds2_vasc.high_risk",
+    "severity": "High",
+    "message_contains": "CHA",
+    "fingerprint": "19f10b65f2a59f9f"
+  }
+}

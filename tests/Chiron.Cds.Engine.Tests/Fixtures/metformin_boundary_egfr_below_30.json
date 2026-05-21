@@ -1,0 +1,18 @@
+{
+  "name": "metformin_boundary_egfr_below_30",
+  "description": "65yo female, creatinine 2.0 mg/dL → eGFR just below 30 → fires.",
+  "patient": { "id": "p3", "age_years": 65, "sex": "F" },
+  "medications": [
+    { "name": "metformin", "active": true }
+  ],
+  "labs": [
+    { "name": "creatinine", "value": 2.0, "unit": "mg/dL" }
+  ],
+  "conditions": [],
+  "expect_alert": {
+    "rule_id": "metformin.renal.contraindicated",
+    "severity": "High",
+    "message_contains": "Avoid metformin",
+    "fingerprint": "ad728e0a1afdea34"
+  }
+}

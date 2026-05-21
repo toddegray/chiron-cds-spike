@@ -1,0 +1,12 @@
+{
+  "name": "warfarin_no_nsaid_no_fire",
+  "description": "Warfarin with acetaminophen (not an NSAID) → no interaction alert.",
+  "patient": { "id": "p7", "age_years": 60, "sex": "F" },
+  "medications": [
+    { "name": "warfarin", "active": true },
+    { "name": "acetaminophen", "active": true }
+  ],
+  "labs": [],
+  "conditions": [],
+  "expect_alert": null
+}

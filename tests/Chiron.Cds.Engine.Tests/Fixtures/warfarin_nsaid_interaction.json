@@ -1,0 +1,17 @@
+{
+  "name": "warfarin_nsaid_interaction",
+  "description": "Patient on warfarin + ibuprofen → bleeding-risk alert.",
+  "patient": { "id": "p6", "age_years": 60, "sex": "M" },
+  "medications": [
+    { "name": "warfarin", "active": true },
+    { "name": "ibuprofen", "active": true }
+  ],
+  "labs": [],
+  "conditions": [],
+  "expect_alert": {
+    "rule_id": "warfarin.nsaid.bleeding_risk",
+    "severity": "High",
+    "message_contains": "Warfarin",
+    "fingerprint": "4ecd1b38d40696a8"
+  }
+}

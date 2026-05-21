@@ -1,0 +1,18 @@
+{
+  "name": "metformin_elderly_male_egfr_27",
+  "description": "78yo male, creatinine 2.4 mg/dL → eGFR ~27 → contraindication fires.",
+  "patient": { "id": "p1", "age_years": 78, "sex": "M" },
+  "medications": [
+    { "name": "metformin", "active": true }
+  ],
+  "labs": [
+    { "name": "creatinine", "value": 2.4, "unit": "mg/dL" }
+  ],
+  "conditions": [],
+  "expect_alert": {
+    "rule_id": "metformin.renal.contraindicated",
+    "severity": "High",
+    "message_contains": "Avoid metformin",
+    "fingerprint": "841b53c0be39fc12"
+  }
+}

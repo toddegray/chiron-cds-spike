@@ -1,0 +1,21 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+.vs/
+.idea/
+
+## Test results
+TestResults/
+*.trx
+*.coverage
+
+## Secrets (never commit)
+secrets.json
+appsettings.*.Production.json
+
+## OS
+.DS_Store
+Thumbs.db

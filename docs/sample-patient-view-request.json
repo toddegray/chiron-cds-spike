@@ -1,0 +1,722 @@
+{
+  "hook": "patient-view",
+  "hookInstance": "demo-real-annie-smith",
+  "fhirServer": "https://fhir-ehr-code.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d",
+  "context": {
+    "patientId": "12674028"
+  },
+  "prefetch": {
+    "patient": {
+      "resourceType": "Patient",
+      "id": "12674028",
+      "meta": {
+        "versionId": "18",
+        "lastUpdated": "2024-09-17T14:35:13.000Z"
+      },
+      "text": {
+        "status": "generated",
+        "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>Patient</b></p><p><b>Name</b>: SMITH, ANNIE</p><p><b>Status</b>: Active</p><p><b>DOB</b>: Aug  1, 1990</p><p><b>Administrative Gender</b>: Female</p><p><b>Marital Status</b>: Married</p></div>"
+      },
+      "extension": [
+        {
+          "extension": [
+            {
+              "valueCoding": {
+                "system": "urn:oid:2.16.840.1.113883.6.238",
+                "code": "2106-3",
+                "display": "White",
+                "userSelected": false
+              },
+              "url": "ombCategory"
+            },
+            {
+              "valueString": "White",
+              "url": "text"
+            }
+          ],
+          "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race"
+        },
+        {
+          "extension": [
+            {
+              "valueCoding": {
+                "system": "urn:oid:2.16.840.1.113883.6.238",
+                "code": "2135-2",
+                "display": "Hispanic or Latino",
+                "userSelected": false
+              },
+              "url": "ombCategory"
+            },
+            {
+              "valueString": "Hispanic, Latino, or Spanish Origin",
+              "url": "text"
+            }
+          ],
+          "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity"
+        },
+        {
+          "valueCode": "248152002",
+          "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-sex"
+        }
+      ],
+      "identifier": [
+        {
+          "id": "CI-491949810-0",
+          "use": "usual",
+          "type": {
+            "coding": [
+              {
+                "system": "https://fhir.cerner.com/ec2458f2-1e24-41c8-b71b-0e701af7583d/codeSet/4",
+                "code": "2",
+                "display": "Community Medical Record Number",
+                "userSelected": true
+              },
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                "code": "MR",
+                "display": "Medical record number",
+                "userSelected": false
+              }
+            ],
+            "text": "Community Medical Record Number"
+          },
+          "system": "urn:oid:2.16.840.1.113883.3.787.0.0",
+          "value": "104198",
+          "_value": {
+            "extension": [
+              {
+                "valueString": "104198",
+                "url": "http://hl7.org/fhir/StructureDefinition/rendered-value"
+              }
+            ]
+          }
+        },
+        {
+          "id": "CI-489979698-1",
+          "use": "usual",
+          "type": {
+            "coding": [
+              {
+                "system": "https://fhir.cerner.com/ec2458f2-1e24-41c8-b71b-0e701af7583d/codeSet/4",
+                "code": "10",
+                "display": "MRN",
+                "userSelected": true
+              },
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                "code": "MR",
+                "display": "Medical record number",
+                "userSelected": false
+              }
+            ],
+            "text": "MRN"
+          },
+          "system": "urn:oid:2.16.840.1.113883.6.1000",
+          "value": "6827",
+          "_value": {
+            "extension": [
+              {
+                "valueString": "00000006827",
+                "url": "http://hl7.org/fhir/StructureDefinition/rendered-value"
+              }
+            ]
+          },
+          "period": {
+            "start": "2018-11-05T17:46:18.000Z"
+          }
+        },
+        {
+          "id": "CI-490152895-2",
+          "use": "usual",
+          "type": {
+            "coding": [
+              {
+                "system": "https://fhir.cerner.com/ec2458f2-1e24-41c8-b71b-0e701af7583d/codeSet/4",
+                "code": "2553236785",
+                "display": "MIllennium Person Identifier",
+                "userSelected": true
+              }
+            ],
+            "text": "MIllennium Person Identifier"
+          },
+          "_system": {
+            "extension": [
+              {
+                "valueCode": "unknown",
+                "url": "http://hl7.org/fhir/StructureDefinition/data-absent-reason"
+              }
+            ]
+          },
+          "value": "12756",
+          "_value": {
+            "extension": [
+              {
+                "valueString": "12756",
+                "url": "http://hl7.org/fhir/StructureDefinition/rendered-value"
+              }
+            ]
+          },
+          "period": {
+            "start": "2020-12-18T19:15:04.000Z"
+          }
+        }
+      ],
+      "active": true,
+      "name": [
+        {
+          "id": "CI-12674028-0",
+          "use": "official",
+          "text": "SMITH, ANNIE",
+          "family": "SMITH",
+          "given": [
+            "ANNIE"
+          ],
+          "period": {
+            "start": "2018-11-05T17:46:30.000Z"
+          }
+        },
+        {
+          "id": "CI-489979702-0",
+          "use": "maiden",
+          "text": "WILLIAMS,",
+          "family": "WILLIAMS",
+          "period": {
+            "start": "2018-11-05T17:46:18.000Z"
+          }
+        }
+      ],
+      "telecom": [
+        {
+          "id": "CI-PH-29765907-0",
+          "extension": [
+            {
+              "valueUrl": "(816)555-8989",
+              "url": "http://hl7.org/fhir/StructureDefinition/iso21090-TEL-address"
+            }
+          ],
+          "system": "phone",
+          "value": "8165558989",
+          "use": "home",
+          "rank": 1,
+          "period": {
+            "start": "2018-11-05T17:46:18.000Z"
+          }
+        },
+        {
+          "id": "CI-PH-29889790-1",
+          "extension": [
+            {
+              "valueUrl": "5555555555",
+              "url": "http://hl7.org/fhir/StructureDefinition/iso21090-TEL-address"
+            },
+            {
+              "valueString": "12345",
+              "url": "http://hl7.org/fhir/StructureDefinition/contactpoint-extension"
+            }
+          ],
+          "system": "phone",
+          "value": "5555555555",
+          "use": "home",
+          "rank": 2
+        }
+      ],
+      "gender": "female",
+      "birthDate": "1990-08-01",
+      "address": [
+        {
+          "id": "CI-24267546-0",
+          "use": "home",
+          "text": "2800 ROCKCREEK PARKWAY\nKANSAS CITY, MO 64117\nUS",
+          "line": [
+            "2800 ROCKCREEK PARKWAY"
+          ],
+          "city": "KANSAS CITY",
+          "state": "MO",
+          "postalCode": "64117",
+          "country": "US",
+          "period": {
+            "start": "2018-11-05T19:34:56.000Z"
+          }
+        }
+      ],
+      "maritalStatus": {
+        "coding": [
+          {
+            "system": "https://fhir.cerner.com/ec2458f2-1e24-41c8-b71b-0e701af7583d/codeSet/38",
+            "code": "309237",
+            "display": "Married",
+            "userSelected": true
+          },
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
+            "code": "M",
+            "display": "Married",
+            "userSelected": false
+          }
+        ],
+        "text": "Married"
+      },
+      "contact": [
+        {
+          "extension": [
+            {
+              "valueReference": {
+                "reference": "RelatedPerson/12674029-12674028"
+              },
+              "url": "http://hl7.org/fhir/StructureDefinition/patient-relatedPerson"
+            }
+          ],
+          "relationship": [
+            {
+              "coding": [
+                {
+                  "system": "https://fhir.cerner.com/ec2458f2-1e24-41c8-b71b-0e701af7583d/codeSet/351",
+                  "code": "1153",
+                  "display": "Family Member",
+                  "userSelected": true
+                }
+              ],
+              "text": "Family Member"
+            }
+          ],
+          "name": {
+            "id": "CI-12674029-0",
+            "use": "official",
+            "text": "SMITH, ANNIESBOY"
+          },
+          "period": {
+            "start": "2018-11-05T17:55:14.000Z"
+          }
+        }
+      ],
+      "communication": [
+        {
+          "language": {
+            "coding": [
+              {
+                "system": "https://fhir.cerner.com/ec2458f2-1e24-41c8-b71b-0e701af7583d/codeSet/36",
+                "code": "2553237401",
+                "display": "Spanish",
+                "userSelected": true
+              },
+              {
+                "system": "urn:ietf:bcp:47",
+                "code": "es",
+                "display": "Spanish",
+                "userSelected": false
+              }
+            ],
+            "text": "Spanish"
+          },
+          "preferred": true
+        }
+      ],
+      "generalPractitioner": [
+        {
+          "id": "CI-489979726-1",
+          "reference": "Practitioner/11817978",
+          "display": "Carter, Kristin Cerner"
+        }
+      ]
+    },
+    "conditions": {
+      "resourceType": "Bundle",
+      "id": "9fa40029-df0c-43e4-93c3-cff011e4da2c",
+      "type": "searchset",
+      "link": [
+        {
+          "relation": "self",
+          "url": "https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/Condition?patient=12674028"
+        }
+      ],
+      "entry": [
+        {
+          "fullUrl": "https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/Condition/p73151721",
+          "resource": {
+            "resourceType": "Condition",
+            "id": "p73151721",
+            "meta": {
+              "versionId": "73151721",
+              "lastUpdated": "2021-03-12T16:10:41.000Z"
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>Condition</b></p><p><b>Patient</b>: SMITH, ANNIE</p><p><b>Problem</b>: Type 2 diabetes mellitus, Diabetes mellitus type 2 (disorder)</p><p><b>Category Classification</b>: Medical</p><p><b>Clinical Status</b>: Active</p><p><b>Verification Status</b>: Confirmed</p><p><b>Onset</b>: 2018</p></div>"
+            },
+            "clinicalStatus": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                  "code": "active",
+                  "display": "Active",
+                  "userSelected": false
+                }
+              ],
+              "text": "Active"
+            },
+            "verificationStatus": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+                  "code": "confirmed",
+                  "display": "Confirmed",
+                  "userSelected": false
+                }
+              ],
+              "text": "Confirmed"
+            },
+            "category": [
+              {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+                    "code": "problem-list-item",
+                    "display": "Problem List Item"
+                  }
+                ],
+                "text": "Problem List Item"
+              },
+              {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "74188005",
+                    "display": "Medical (qualifier value)",
+                    "userSelected": false
+                  }
+                ],
+                "text": "Medical"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://snomed.info/sct",
+                  "code": "44054006",
+                  "display": "Diabetes mellitus type 2 (disorder)",
+                  "userSelected": true
+                }
+              ],
+              "text": "Type 2 diabetes mellitus"
+            },
+            "subject": {
+              "reference": "Patient/12674028",
+              "display": "SMITH, ANNIE"
+            },
+            "onsetDateTime": "2018",
+            "recordedDate": "2021-03-12T16:10:41.000Z",
+            "recorder": {
+              "reference": "Practitioner/12742563",
+              "display": "Pivonka, Fran"
+            }
+          },
+          "search": {
+            "mode": "match"
+          }
+        },
+        {
+          "fullUrl": "https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/Condition/p73151791",
+          "resource": {
+            "resourceType": "Condition",
+            "id": "p73151791",
+            "meta": {
+              "versionId": "73151791",
+              "lastUpdated": "2021-03-12T16:22:04.000Z"
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>Condition</b></p><p><b>Patient</b>: SMITH, ANNIE</p><p><b>Problem</b>: Tobacco use, Tobacco user (finding)</p><p><b>Category Classification</b>: Medical</p><p><b>Clinical Status</b>: Active</p><p><b>Verification Status</b>: Provisional</p></div>"
+            },
+            "clinicalStatus": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                  "code": "active",
+                  "display": "Active",
+                  "userSelected": false
+                }
+              ],
+              "text": "Active"
+            },
+            "verificationStatus": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+                  "code": "provisional",
+                  "display": "Provisional",
+                  "userSelected": false
+                }
+              ],
+              "text": "Probable"
+            },
+            "category": [
+              {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+                    "code": "problem-list-item",
+                    "display": "Problem List Item"
+                  }
+                ],
+                "text": "Problem List Item"
+              },
+              {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "74188005",
+                    "display": "Medical (qualifier value)",
+                    "userSelected": false
+                  }
+                ],
+                "text": "Medical"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://snomed.info/sct",
+                  "code": "110483000",
+                  "display": "Tobacco user (finding)",
+                  "userSelected": true
+                }
+              ],
+              "text": "Tobacco use"
+            },
+            "subject": {
+              "reference": "Patient/12674028",
+              "display": "SMITH, ANNIE"
+            },
+            "recordedDate": "2021-03-12T16:22:04.000Z",
+            "recorder": {
+              "reference": "Practitioner/1",
+              "display": "SYSTEM, SYSTEM Cerner"
+            }
+          },
+          "search": {
+            "mode": "match"
+          }
+        }
+      ]
+    },
+    "medications": {
+      "resourceType": "Bundle",
+      "id": "a6f53630-1afe-490b-bca5-e64bf0cbb515",
+      "type": "searchset",
+      "total": 1,
+      "link": [
+        {
+          "relation": "self",
+          "url": "https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/MedicationRequest?patient=12674028&status=active"
+        }
+      ],
+      "entry": [
+        {
+          "fullUrl": "https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/MedicationRequest/325885149",
+          "resource": {
+            "resourceType": "MedicationRequest",
+            "id": "325885149",
+            "meta": {
+              "versionId": "0",
+              "lastUpdated": "2021-03-12T16:09:09Z"
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>Medication Request</b></p><p><b>Status</b>: Active</p><p><b>Intent</b>: Plan</p><p><b>Medication</b>: metFORMIN (metFORMIN 500 mg oral tablet)</p><p><b>Dosage Instructions</b>: 500 mg = 1 tab, Oral, Daily, with meals</p><p><b>Patient</b>: SMITH, ANNIE</p><p><b>Authored On</b>: Mar 12, 2021  4:08 P.M. UTC</p></div>"
+            },
+            "extension": [
+              {
+                "valueCodeableConcept": {
+                  "text": "Does not need pharmacy verification"
+                },
+                "url": "https://fhir-ehr.cerner.com/r4/StructureDefinition/pharmacy-verification-status"
+              },
+              {
+                "valueCoding": {
+                  "system": "http://electronichealth.se/fhir/ValueSet/prescription-format",
+                  "code": "ELECTRONIC",
+                  "display": "Electronic"
+                },
+                "url": "http://electronichealth.se/fhir/StructureDefinition/NLLPrescriptionFormat"
+              },
+              {
+                "valueCoding": {
+                  "system": "http://ehalsomyndigheten.se/fhir/ValueSet/registration-basis-codes",
+                  "code": "ELECTRONIC",
+                  "display": "Electronic"
+                },
+                "url": "http://electronichealth.se/fhir/StructureDefinition/NLLRegistrationBasis"
+              }
+            ],
+            "status": "active",
+            "intent": "plan",
+            "category": [
+              {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+                    "code": "community",
+                    "display": "Community",
+                    "userSelected": false
+                  }
+                ]
+              },
+              {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/medication-statement-category",
+                    "code": "patientspecified",
+                    "display": "Patient Specified",
+                    "userSelected": false
+                  }
+                ]
+              }
+            ],
+            "reportedBoolean": true,
+            "medicationCodeableConcept": {
+              "coding": [
+                {
+                  "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                  "code": "861007",
+                  "display": "Metformin hydrochloride 500 MG Oral Tablet",
+                  "userSelected": false
+                },
+                {
+                  "system": "https://fhir.cerner.com/ec2458f2-1e24-41c8-b71b-0e701af7583d/synonym",
+                  "code": "2762979",
+                  "display": "metFORMIN 500 mg oral tablet",
+                  "userSelected": true
+                }
+              ],
+              "text": "metFORMIN (metFORMIN 500 mg oral tablet)"
+            },
+            "subject": {
+              "reference": "Patient/12674028",
+              "display": "SMITH, ANNIE"
+            },
+            "encounter": {
+              "reference": "Encounter/97895449"
+            },
+            "authoredOn": "2021-03-12T16:08:32Z",
+            "requester": {
+              "extension": [
+                {
+                  "valueCode": "unknown",
+                  "url": "http://hl7.org/fhir/StructureDefinition/data-absent-reason"
+                }
+              ]
+            },
+            "courseOfTherapyType": {
+              "coding": [
+                {
+                  "system": "https://fhir.cerner.com/ec2458f2-1e24-41c8-b71b-0e701af7583d/codeSet/4009",
+                  "code": "2338",
+                  "display": "Soft Stop",
+                  "userSelected": true
+                },
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/medicationrequest-course-of-therapy",
+                  "code": "continuous",
+                  "display": "Continuous long term therapy",
+                  "userSelected": false
+                }
+              ],
+              "text": "Maintenance"
+            },
+            "dosageInstruction": [
+              {
+                "extension": [
+                  {
+                    "valueString": "500 mg = 1 tab, Oral, Daily, with meals",
+                    "url": "https://fhir-ehr.cerner.com/r4/StructureDefinition/clinical-instruction"
+                  }
+                ],
+                "text": "500 mg = 1 tab, Oral, Daily, with meals",
+                "additionalInstruction": [
+                  {
+                    "text": "with meals"
+                  }
+                ],
+                "patientInstruction": "1 tab Oral (given by mouth) every day. with meals.",
+                "timing": {
+                  "repeat": {
+                    "boundsPeriod": {
+                      "start": "2021-03-12T16:08:00Z"
+                    }
+                  },
+                  "code": {
+                    "coding": [
+                      {
+                        "system": "https://fhir.cerner.com/ec2458f2-1e24-41c8-b71b-0e701af7583d/codeSet/4003",
+                        "code": "696530",
+                        "display": "Daily",
+                        "userSelected": true
+                      },
+                      {
+                        "system": "http://snomed.info/sct",
+                        "code": "229797004",
+                        "display": "Once daily (qualifier value)",
+                        "userSelected": false
+                      },
+                      {
+                        "system": "http://terminology.hl7.org/CodeSystem/v3-GTSAbbreviation",
+                        "code": "QD",
+                        "display": "QD",
+                        "userSelected": false
+                      }
+                    ],
+                    "text": "Daily"
+                  }
+                },
+                "route": {
+                  "coding": [
+                    {
+                      "system": "https://fhir.cerner.com/ec2458f2-1e24-41c8-b71b-0e701af7583d/codeSet/4001",
+                      "code": "318185",
+                      "display": "Oral",
+                      "userSelected": true
+                    },
+                    {
+                      "system": "http://snomed.info/sct",
+                      "code": "26643006",
+                      "display": "Oral route (qualifier value)",
+                      "userSelected": false
+                    }
+                  ],
+                  "text": "Oral"
+                },
+                "doseAndRate": [
+                  {
+                    "doseQuantity": {
+                      "value": 1.0,
+                      "unit": "tab",
+                      "system": "http://unitsofmeasure.org",
+                      "code": "{tbl}"
+                    }
+                  }
+                ]
+              }
+            ],
+            "dispenseRequest": {
+              "extension": [
+                {
+                  "valueBoolean": false,
+                  "url": "http://electronichealth.se/fhir/StructureDefinition/NLLDosePackaging"
+                }
+              ],
+              "validityPeriod": {
+                "start": "2021-03-12T16:08:32Z"
+              }
+            },
+            "substitution": {
+              "allowedBoolean": true
+            }
+          },
+          "search": {
+            "mode": "match"
+          }
+        }
+      ]
+    }
+  }
+}
