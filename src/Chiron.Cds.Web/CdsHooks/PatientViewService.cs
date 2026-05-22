@@ -81,7 +81,7 @@ public sealed class PatientViewService
         }
 
         var inputs = _factMapper.Project(chart);
-        var result = _engine.Evaluate(inputs.Patient, inputs.Medications, inputs.Labs, inputs.Conditions);
+        var result = _engine.Evaluate(inputs.Patient, inputs.Medications, inputs.Labs, inputs.Conditions, inputs.Allergies);
         var cards = new List<CdsCard>(result.Alerts.Count);
         foreach (var alert in result.Alerts)
         {
@@ -111,6 +111,7 @@ public sealed class PatientViewService
             var conditions = new List<Condition>();
             var observations = new List<Observation>();
             var meds = new List<MedicationRequest>();
+            var allergies = new List<AllergyIntolerance>();
 
             foreach (var (key, value) in prefetch)
             {
@@ -129,6 +130,7 @@ public sealed class PatientViewService
                                 case Condition c: conditions.Add(c); break;
                                 case Observation o: observations.Add(o); break;
                                 case MedicationRequest m: meds.Add(m); break;
+                                case AllergyIntolerance a: allergies.Add(a); break;
                                 case Patient pp when string.Equals(pp.Id, patientId, StringComparison.Ordinal):
                                     patient ??= pp; break;
                             }
@@ -137,11 +139,12 @@ public sealed class PatientViewService
                     case Condition c: conditions.Add(c); break;
                     case Observation o: observations.Add(o); break;
                     case MedicationRequest m: meds.Add(m); break;
+                    case AllergyIntolerance a: allergies.Add(a); break;
                 }
             }
 
             if (patient is null) return false;
-            chart = new PatientChart(patient, conditions, observations, meds, Encounter: null);
+            chart = new PatientChart(patient, conditions, observations, meds, allergies, Encounter: null);
             return true;
         }
         catch (Exception ex)

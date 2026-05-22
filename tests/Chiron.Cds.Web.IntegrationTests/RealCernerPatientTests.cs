@@ -89,6 +89,63 @@ public class RealCernerPatientTests : IClassFixture<WebApplicationFactory<Progra
     }
 
     [Fact]
+    public async Task Annie_Smith_Real_Allergies_Are_Projected_Without_Crash()
+    {
+        // Annie Smith has 2 documented allergies in the open sandbox:
+        // "sulfa drugs" (criticality=high) and "Cashew Nuts". This test
+        // confirms our AllergyIntolerance fetch + mapper handle Cerner's
+        // real wire shape end-to-end. Annie's active meds (metformin only)
+        // don't collide with either allergy, so the drug-allergy rule
+        // does not fire on her chart — the assertion is that the request
+        // succeeds and the rule did NOT incorrectly fire.
+        using var sandboxHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        JsonElement patient, conditions, medications, allergies;
+        try
+        {
+            patient = await GetJsonAsync(sandboxHttp, $"{OpenBase}/Patient/{AnnieSmithId}");
+            conditions = await GetJsonAsync(sandboxHttp, $"{OpenBase}/Condition?patient={AnnieSmithId}");
+            medications = await GetJsonAsync(sandboxHttp, $"{OpenBase}/MedicationRequest?patient={AnnieSmithId}&status=active");
+            allergies = await GetJsonAsync(sandboxHttp, $"{OpenBase}/AllergyIntolerance?patient={AnnieSmithId}");
+        }
+        catch (HttpRequestException) { return; }
+        catch (TaskCanceledException) { return; }
+
+        var request = new
+        {
+            hook = "patient-view",
+            hookInstance = Guid.NewGuid().ToString(),
+            fhirServer = FhirAuthBase,
+            context = new { patientId = AnnieSmithId },
+            prefetch = new Dictionary<string, JsonElement>
+            {
+                ["patient"] = patient,
+                ["conditions"] = conditions,
+                ["medications"] = medications,
+                ["allergies"] = allergies,
+            },
+        };
+
+        // Positive sanity: the live Cerner endpoint must have returned at
+        // least one allergy entry. Without this assertion the test passes
+        // even when Cerner silently returns an empty bundle, which would
+        // mean the AllergyIntolerance projection path is no longer exercised
+        // end-to-end.
+        allergies.GetProperty("entry").GetArrayLength().Should().BeGreaterThan(0,
+            because: "Annie Smith has documented allergies (sulfa, cashew) in the open sandbox");
+
+        // The unit-test side of the allergy projection matrix lives in
+        // FhirToFactMapperTests; here we only assert end-to-end shape.
+        using var client = _factory.CreateClient();
+        var resp = await client.PostAsJsonAsync("/cds-services/chiron-patient-view", request);
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await resp.Content.ReadFromJsonAsync<CdsHookResponse>();
+        body.Should().NotBeNull();
+        body!.Cards.Should().NotContain(c => c.Summary.Contains("allergy", StringComparison.OrdinalIgnoreCase),
+            because: "Annie's allergies (sulfa, cashew) do not collide with her single active med (metformin)");
+    }
+
+    [Fact]
     public async Task Nancy_Smarts_Real_Chart_Produces_No_Alerts()
     {
         // Patient 12724066 (Nancy SMARTS) is the canonical Cerner sandbox

@@ -11,4 +11,5 @@ public sealed record PatientChart(
     IReadOnlyList<Condition> Conditions,
     IReadOnlyList<Observation> Observations,
     IReadOnlyList<MedicationRequest> MedicationRequests,
+    IReadOnlyList<AllergyIntolerance> Allergies,
     Encounter? Encounter);

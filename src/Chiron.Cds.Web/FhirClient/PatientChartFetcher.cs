@@ -52,22 +52,25 @@ public sealed class PatientChartFetcher
             new[] { $"patient={patientId}", "category=laboratory" }, "Observation", ct);
         var medsTask = TryFetchBundleAsync<MedicationRequest>(client,
             new[] { $"patient={patientId}", "status=active" }, "MedicationRequest", ct);
+        var allergiesTask = TryFetchBundleAsync<AllergyIntolerance>(client,
+            new[] { $"patient={patientId}" }, "AllergyIntolerance", ct);
         var encounterTask = string.IsNullOrEmpty(encounterId)
             ? Task.FromResult<Encounter?>(null)
             : TryReadAsync<Encounter>(client, encounterId, ct);
 
-        await Task.WhenAll(conditionsTask, observationsTask, medsTask, encounterTask).ConfigureAwait(false);
+        await Task.WhenAll(conditionsTask, observationsTask, medsTask, allergiesTask, encounterTask).ConfigureAwait(false);
 
         var conditions = await conditionsTask.ConfigureAwait(false);
         var observations = await observationsTask.ConfigureAwait(false);
         var meds = await medsTask.ConfigureAwait(false);
+        var allergies = await allergiesTask.ConfigureAwait(false);
         var encounter = await encounterTask.ConfigureAwait(false);
 
         _log.LogInformation(
-            "Fetched chart for patient {PatientId}: {Conditions} conditions, {Observations} observations, {Meds} medications.",
-            patientId, conditions.Count, observations.Count, meds.Count);
+            "Fetched chart for patient {PatientId}: {Conditions} conditions, {Observations} observations, {Meds} medications, {Allergies} allergies.",
+            patientId, conditions.Count, observations.Count, meds.Count, allergies.Count);
 
-        return new PatientChart(patient, conditions, observations, meds, encounter);
+        return new PatientChart(patient, conditions, observations, meds, allergies, encounter);
     }
 
     private async Task<IReadOnlyList<TResource>> TryFetchBundleAsync<TResource>(

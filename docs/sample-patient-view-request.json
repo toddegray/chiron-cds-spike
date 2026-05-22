@@ -717,6 +717,141 @@
           }
         }
       ]
+    },
+    "allergies": {
+      "resourceType": "Bundle",
+      "id": "913ca66e-0da1-42ff-a39b-7f0bebbc7dd5",
+      "type": "searchset",
+      "link": [
+        {
+          "relation": "self",
+          "url": "https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/AllergyIntolerance?patient=12674028"
+        }
+      ],
+      "entry": [
+        {
+          "fullUrl": "https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/AllergyIntolerance/12770399",
+          "resource": {
+            "resourceType": "AllergyIntolerance",
+            "id": "12770399",
+            "meta": {
+              "versionId": "12770399",
+              "lastUpdated": "2021-03-12T16:07:02Z"
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>Allergy Intolerance</b></p><p><b>Patient</b>: SMITH, ANNIE</p><p><b>Allergy</b>: Sulfonamide</p><p><b>Verification Status</b>: Confirmed</p><p><b>Clinical Status</b>: Active</p><p><b>Criticality</b>: High Risk</p><p><b>Category</b>: Medication</p></div>"
+            },
+            "clinicalStatus": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+                  "code": "active",
+                  "display": "Active"
+                }
+              ],
+              "text": "Active"
+            },
+            "verificationStatus": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
+                  "code": "confirmed",
+                  "display": "Confirmed"
+                }
+              ],
+              "text": "Active"
+            },
+            "type": "allergy",
+            "category": [
+              "medication"
+            ],
+            "criticality": "high",
+            "code": {
+              "coding": [
+                {
+                  "system": "http://snomed.info/sct",
+                  "code": "387406002",
+                  "display": "Sulfonamide"
+                }
+              ],
+              "text": "sulfa drugs"
+            },
+            "patient": {
+              "reference": "Patient/12674028",
+              "display": "SMITH, ANNIE"
+            },
+            "encounter": {
+              "reference": "Encounter/97895449"
+            },
+            "recordedDate": "2021-03-12T16:07:02Z",
+            "recorder": {
+              "reference": "Practitioner/12742563",
+              "display": "Pivonka, Fran"
+            }
+          },
+          "search": {
+            "mode": "match"
+          }
+        },
+        {
+          "fullUrl": "https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/AllergyIntolerance/14995603",
+          "resource": {
+            "resourceType": "AllergyIntolerance",
+            "id": "14995603",
+            "meta": {
+              "versionId": "14995603",
+              "lastUpdated": "2025-08-23T02:51:21Z"
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>Allergy Intolerance</b></p><p><b>Patient</b>: SMITH, ANNIE</p><p><b>Allergy</b>: Cashew nut (substance)</p><p><b>Verification Status</b>: Confirmed</p><p><b>Clinical Status</b>: Active</p></div>"
+            },
+            "clinicalStatus": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+                  "code": "active",
+                  "display": "Active"
+                }
+              ],
+              "text": "Active"
+            },
+            "verificationStatus": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
+                  "code": "confirmed",
+                  "display": "Confirmed"
+                }
+              ],
+              "text": "Active"
+            },
+            "code": {
+              "coding": [
+                {
+                  "system": "http://snomed.info/sct",
+                  "code": "227493005",
+                  "display": "Cashew nut (substance)"
+                }
+              ],
+              "text": "Cashew Nuts"
+            },
+            "patient": {
+              "reference": "Patient/12674028",
+              "display": "SMITH, ANNIE"
+            },
+            "recordedDate": "2025-08-23T02:51:21Z",
+            "recorder": {
+              "reference": "Practitioner/1",
+              "display": "SYSTEM, SYSTEM Cerner"
+            }
+          },
+          "search": {
+            "mode": "match"
+          }
+        }
+      ]
     }
   }
 }

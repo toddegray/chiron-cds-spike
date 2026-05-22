@@ -13,18 +13,21 @@ public sealed class EvaluationContext
     private readonly Dictionary<string, Lab> _labsByName;
     private readonly Dictionary<string, Medication> _medsByName;
     private readonly HashSet<string> _conditionNames;
+    private readonly Dictionary<string, Allergy> _allergiesBySubstance;
 
     public EvaluationContext(
         Patient patient,
         IEnumerable<Medication> medications,
         IEnumerable<Lab> labs,
-        IEnumerable<Condition> conditions)
+        IEnumerable<Condition> conditions,
+        IEnumerable<Allergy>? allergies = null)
     {
         ArgumentNullException.ThrowIfNull(patient);
         Patient = patient;
         Medications = medications?.ToArray() ?? Array.Empty<Medication>();
         Labs = labs?.ToArray() ?? Array.Empty<Lab>();
         Conditions = conditions?.ToArray() ?? Array.Empty<Condition>();
+        Allergies = allergies?.ToArray() ?? Array.Empty<Allergy>();
         _labsByName = Labs.GroupBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(l => l.TakenAt ?? DateTimeOffset.MinValue).First(),
                 StringComparer.OrdinalIgnoreCase);
@@ -34,17 +37,22 @@ public sealed class EvaluationContext
         _conditionNames = new HashSet<string>(
             Conditions.Where(c => c.Active).Select(c => c.Name),
             StringComparer.OrdinalIgnoreCase);
+        _allergiesBySubstance = Allergies.Where(a => a.Active)
+            .GroupBy(a => a.Substance, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
     }
 
     public Patient Patient { get; }
     public IReadOnlyList<Medication> Medications { get; }
     public IReadOnlyList<Lab> Labs { get; }
     public IReadOnlyList<Condition> Conditions { get; }
+    public IReadOnlyList<Allergy> Allergies { get; }
 
     public bool HasMedication(string name) => _medsByName.ContainsKey(name);
     public Medication? Medication(string name) => _medsByName.GetValueOrDefault(name);
     public bool HasLab(string name) => _labsByName.ContainsKey(name);
     public bool HasCondition(string name) => _conditionNames.Contains(name);
+    public Allergy? Allergy(string substance) => _allergiesBySubstance.GetValueOrDefault(substance);
 
     /// <summary>
     /// Most-recent lab observation by name. Throws <see cref="MissingInputException"/>

@@ -1,14 +1,17 @@
 using System.Globalization;
 
 using Chiron.Cds.Engine.Primitives;
+using Chiron.Cds.Engine.Rules.Interactions;
 using Chiron.Cds.Web.FhirClient;
 using Hl7.Fhir.Model;
 
 using EnginePatient = Chiron.Cds.Engine.Primitives.Patient;
 using EngineCondition = Chiron.Cds.Engine.Primitives.Condition;
 using EngineMedication = Chiron.Cds.Engine.Primitives.Medication;
+using EngineAllergy = Chiron.Cds.Engine.Primitives.Allergy;
 using FhirPatient = Hl7.Fhir.Model.Patient;
 using FhirCondition = Hl7.Fhir.Model.Condition;
+using FhirAllergyIntolerance = Hl7.Fhir.Model.AllergyIntolerance;
 
 namespace Chiron.Cds.Web.Mappers;
 
@@ -42,7 +45,8 @@ public sealed class FhirToFactMapper
         var labs = chart.Observations.SelectMany(ProjectLab).ToArray();
         var conditions = chart.Conditions.SelectMany(ProjectCondition).ToArray();
         var medications = chart.MedicationRequests.SelectMany(ProjectMedication).ToArray();
-        return new EngineInputs(patient, medications, labs, conditions);
+        var allergies = chart.Allergies.SelectMany(ProjectAllergy).ToArray();
+        return new EngineInputs(patient, medications, labs, conditions, allergies);
     }
 
     private EnginePatient ProjectPatient(FhirPatient patient)
@@ -109,6 +113,81 @@ public sealed class FhirToFactMapper
         yield return new EngineMedication(name, Active: active);
     }
 
+    private IEnumerable<EngineAllergy> ProjectAllergy(FhirAllergyIntolerance allergy)
+    {
+        // Skip non-allergy entries (refuted, entered-in-error, inactive).
+        var clinicalStatus = allergy.ClinicalStatus?.Coding?.FirstOrDefault()?.Code;
+        var active = string.IsNullOrEmpty(clinicalStatus)
+            ? true
+            : string.Equals(clinicalStatus, "active", StringComparison.OrdinalIgnoreCase);
+        var verificationStatus = allergy.VerificationStatus?.Coding?.FirstOrDefault()?.Code;
+        if (string.Equals(verificationStatus, "refuted", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(verificationStatus, "entered-in-error", StringComparison.OrdinalIgnoreCase))
+        {
+            yield break;
+        }
+
+        var substanceText = allergy.Code?.Text
+            ?? allergy.Code?.Coding?.FirstOrDefault()?.Display
+            ?? allergy.Code?.Coding?.FirstOrDefault()?.Code;
+        var substance = NormalizeSubstance(substanceText);
+        if (string.IsNullOrEmpty(substance)) yield break;
+
+        var critical = allergy.Criticality == FhirAllergyIntolerance.AllergyIntoleranceCriticality.High;
+        var reactionText = allergy.Reaction
+            .SelectMany(r => r.Manifestation ?? Enumerable.Empty<CodeableConcept>())
+            .Select(m => m.Text ?? m.Coding?.FirstOrDefault()?.Display)
+            .FirstOrDefault(s => !string.IsNullOrEmpty(s));
+
+        yield return new EngineAllergy(
+            Substance: substance,
+            Class: ClassifyAllergen(substance),
+            Reaction: reactionText,
+            Critical: critical,
+            Active: active);
+    }
+
+    /// <summary>
+    /// Reduce a FHIR-controlled substance display string to a canonical
+    /// lowercase identifier limited to <c>[a-z0-9_-]</c>. A hostile or
+    /// malformed <c>Code.text</c> (e.g. one containing markdown emphasis or
+    /// link syntax) cannot survive normalization, so it cannot reach the
+    /// alert rendering pipeline as a special character. Empty results are
+    /// dropped upstream.
+    /// </summary>
+    internal static string NormalizeSubstance(string? display)
+    {
+        if (string.IsNullOrWhiteSpace(display)) return string.Empty;
+        var trimmed = display.Trim().ToLowerInvariant();
+        var sb = new System.Text.StringBuilder(trimmed.Length);
+        foreach (var ch in trimmed)
+        {
+            var isIdentifierChar = ch is >= 'a' and <= 'z' or >= '0' and <= '9' or '_' or '-';
+            if (isIdentifierChar)
+            {
+                sb.Append(ch);
+            }
+            else if (sb.Length > 0)
+            {
+                // First non-identifier character after we've collected the
+                // initial token ends the substance. "Penicillin G Sodium"
+                // → "penicillin"; "amoxicillin/clavulanate" → "amoxicillin".
+                break;
+            }
+            // Leading non-identifier characters are skipped silently.
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Drug class (e.g. "penicillin", "nsaid") for a canonical substance
+    /// name. Single source of truth lives in
+    /// <see cref="DrugAllergyRule.KnownDrugClasses"/>; this method exists
+    /// so the mapper code reads coherently next to <c>NormalizeSubstance</c>.
+    /// </summary>
+    internal static string? ClassifyAllergen(string substance) =>
+        DrugAllergyRule.KnownDrugClasses.GetValueOrDefault(substance);
+
     private static int ComputeAgeYears(string? birthDate)
     {
         if (string.IsNullOrEmpty(birthDate)) return 0;
@@ -152,4 +231,5 @@ public sealed record EngineInputs(
     EnginePatient Patient,
     IReadOnlyList<EngineMedication> Medications,
     IReadOnlyList<Lab> Labs,
-    IReadOnlyList<EngineCondition> Conditions);
+    IReadOnlyList<EngineCondition> Conditions,
+    IReadOnlyList<EngineAllergy> Allergies);
