@@ -1,5 +1,4 @@
 using System.Net.Mime;
-using System.Text;
 
 using Chiron.Cds.Engine.Primitives;
 using Chiron.Cds.Web.CdsHooks.Models;
@@ -147,30 +146,11 @@ public sealed class AppController : ControllerBase
         return (cards, result.Alerts);
     }
 
-    private static string RenderAlertsHtml(SmartSession sess, IReadOnlyList<CdsCard> cards, int alertCount)
-    {
-        var sb = new StringBuilder();
-        sb.Append("<!doctype html><html><head><meta charset=\"utf-8\"><title>Chiron CDS</title>");
-        sb.Append("<style>body{font-family:system-ui,sans-serif;max-width:880px;margin:2rem auto;padding:0 1rem;color:#222;}");
-        sb.Append(".card{border-left:6px solid #c00;background:#fff7f7;padding:1rem;margin:1rem 0;border-radius:6px;}");
-        sb.Append(".card.info{border-color:#2778c4;background:#f4f8fc;}");
-        sb.Append("pre{background:#f5f5f5;padding:.75rem;border-radius:4px;overflow:auto;}");
-        sb.Append("</style></head><body>");
-        sb.Append("<h1>Chiron CDS</h1>");
-        sb.Append("<p>Session for patient ").Append(WebEncode(sess.PatientId)).Append(" on tenant ")
-          .Append(WebEncode(sess.TenantId)).Append(".</p>");
-        sb.Append("<p>").Append(alertCount).Append(" alert(s) fired.</p>");
-        foreach (var c in cards)
-        {
-            sb.Append("<div class=\"card ").Append(WebEncode(c.Indicator)).Append("\">");
-            sb.Append("<h2>").Append(WebEncode(c.Summary)).Append("</h2>");
-            sb.Append("<details><summary>Show derivation</summary><pre>")
-              .Append(WebEncode(c.Detail ?? "")).Append("</pre></details>");
-            sb.Append("</div>");
-        }
-        sb.Append("</body></html>");
-        return sb.ToString();
-    }
+    private static string RenderAlertsHtml(SmartSession sess, IReadOnlyList<CdsCard> cards, int alertCount) =>
+        AlertHtmlRenderer.Render(
+            heading: "Chiron CDS",
+            subline: $"Session for patient {sess.PatientId} on tenant {sess.TenantId}.",
+            cards: cards);
 
     private static string RenderLandingHtml(string message) =>
         $"<!doctype html><html><body><h1>Chiron CDS</h1><p>{WebEncode(message)}</p></body></html>";
