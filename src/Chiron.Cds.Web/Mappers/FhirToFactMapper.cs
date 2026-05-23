@@ -9,9 +9,11 @@ using EnginePatient = Chiron.Cds.Engine.Primitives.Patient;
 using EngineCondition = Chiron.Cds.Engine.Primitives.Condition;
 using EngineMedication = Chiron.Cds.Engine.Primitives.Medication;
 using EngineAllergy = Chiron.Cds.Engine.Primitives.Allergy;
+using EngineImmunization = Chiron.Cds.Engine.Primitives.Immunization;
 using FhirPatient = Hl7.Fhir.Model.Patient;
 using FhirCondition = Hl7.Fhir.Model.Condition;
 using FhirAllergyIntolerance = Hl7.Fhir.Model.AllergyIntolerance;
+using FhirImmunization = Hl7.Fhir.Model.Immunization;
 
 namespace Chiron.Cds.Web.Mappers;
 
@@ -46,7 +48,8 @@ public sealed class FhirToFactMapper
         var conditions = chart.Conditions.SelectMany(ProjectCondition).ToArray();
         var medications = chart.MedicationRequests.SelectMany(ProjectMedication).ToArray();
         var allergies = chart.Allergies.SelectMany(ProjectAllergy).ToArray();
-        return new EngineInputs(patient, medications, labs, conditions, allergies);
+        var immunizations = chart.Immunizations.SelectMany(ProjectImmunization).ToArray();
+        return new EngineInputs(patient, medications, labs, conditions, allergies, immunizations);
     }
 
     private EnginePatient ProjectPatient(FhirPatient patient)
@@ -147,6 +150,101 @@ public sealed class FhirToFactMapper
             Active: active);
     }
 
+    private IEnumerable<EngineImmunization> ProjectImmunization(FhirImmunization imm)
+    {
+        // FHIR Immunization.status → engine string. Unknown / unsupported
+        // statuses drop the row rather than silently being counted as
+        // "completed" — fabricating a completed dose would let a future
+        // FHIR status (e.g. R5's "in-progress") satisfy a coverage rule
+        // that should still fire.
+        string? status = imm.Status switch
+        {
+            FhirImmunization.ImmunizationStatusCodes.Completed => "completed",
+            FhirImmunization.ImmunizationStatusCodes.NotDone => "not-done",
+            FhirImmunization.ImmunizationStatusCodes.EnteredInError => "entered-in-error",
+            _ => null,
+        };
+        if (status is null)
+        {
+            _log.LogDebug("Skipping immunization {Id}: unsupported status {Status}.", imm.Id, imm.Status);
+            yield break;
+        }
+
+        // Vaccine identity: prefer CVX coding, then displayed text.
+        var vaccineText = imm.VaccineCode?.Coding
+            ?.FirstOrDefault(c => c.System == "http://hl7.org/fhir/sid/cvx")?.Code
+            ?? imm.VaccineCode?.Text
+            ?? imm.VaccineCode?.Coding?.FirstOrDefault()?.Display;
+        var vaccine = NormalizeVaccine(vaccineText);
+        if (string.IsNullOrEmpty(vaccine)) yield break;
+
+        var administeredAt = imm.Occurrence switch
+        {
+            FhirDateTime fdt when DateTimeOffset.TryParse(fdt.Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto) => dto,
+            Period { Start: not null } p when DateTimeOffset.TryParse(p.Start, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto) => dto,
+            _ => (DateTimeOffset?)null,
+        };
+        if (administeredAt is null)
+        {
+            _log.LogDebug("Skipping immunization {Id}: no occurrence date.", imm.Id);
+            yield break;
+        }
+
+        yield return new EngineImmunization(vaccine, administeredAt.Value, status);
+    }
+
+    /// <summary>
+    /// Map a FHIR vaccine identifier (CVX code or display text) to an
+    /// engine canonical vaccine name. Covers the most common adult CVX
+    /// codes for influenza, Tdap, zoster, pneumococcal, and COVID-19;
+    /// unknown codes return empty (the immunization is dropped, never
+    /// silently misclassified).
+    /// </summary>
+    internal static string NormalizeVaccine(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return string.Empty;
+        var trimmed = code.Trim().ToLowerInvariant();
+
+        // Try CVX numeric code first.
+        if (CvxToCanonical.TryGetValue(trimmed, out var byCvx)) return byCvx;
+
+        // Then text contains-match for display strings.
+        if (trimmed.Contains("influenza") || trimmed.Contains("flu shot") || trimmed.Contains("flumist")) return "influenza";
+        if (trimmed.Contains("tdap") || trimmed.Contains("dtap")) return "tdap";
+        if (trimmed.Contains("zoster") || trimmed.Contains("shingrix")) return "zoster_recombinant";
+        if (trimmed.Contains("pneumococcal") || trimmed.Contains("pcv20") || trimmed.Contains("pcv15") || trimmed.Contains("prevnar")) return "pneumococcal_pcv20";
+        if (trimmed.Contains("covid") || trimmed.Contains("sars-cov-2")) return "covid19";
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// CVX → canonical vaccine name. CVX is the CDC's standard vaccine
+    /// coding system; full list at https://www2a.cdc.gov/vaccines/iis/iisstandards/vaccines.asp
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> CvxToCanonical = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        // Influenza
+        ["88"] = "influenza", ["140"] = "influenza", ["141"] = "influenza",
+        ["150"] = "influenza", ["155"] = "influenza", ["158"] = "influenza",
+        ["161"] = "influenza", ["166"] = "influenza", ["171"] = "influenza",
+        ["185"] = "influenza", ["186"] = "influenza", ["197"] = "influenza",
+        // Tdap
+        ["115"] = "tdap", ["139"] = "tdap",
+        // Zoster (recombinant Shingrix; live ZVL is 121)
+        ["187"] = "zoster_recombinant",
+        // Pneumococcal
+        ["133"] = "pneumococcal_pcv20", // PCV13
+        ["152"] = "pneumococcal_pcv20", // PCV15 surrogate
+        ["215"] = "pneumococcal_pcv20", // PCV20
+        ["33"] = "pneumococcal_pcv20",  // PPSV23
+        // COVID-19
+        ["207"] = "covid19", ["208"] = "covid19", ["210"] = "covid19",
+        ["211"] = "covid19", ["212"] = "covid19", ["218"] = "covid19",
+        ["219"] = "covid19", ["228"] = "covid19", ["229"] = "covid19",
+        ["300"] = "covid19", ["301"] = "covid19", ["302"] = "covid19",
+    };
+
     /// <summary>
     /// Reduce a FHIR-controlled substance display string to a canonical
     /// lowercase identifier limited to <c>[a-z0-9_-]</c>. A hostile or
@@ -232,4 +330,5 @@ public sealed record EngineInputs(
     IReadOnlyList<EngineMedication> Medications,
     IReadOnlyList<Lab> Labs,
     IReadOnlyList<EngineCondition> Conditions,
-    IReadOnlyList<EngineAllergy> Allergies);
+    IReadOnlyList<EngineAllergy> Allergies,
+    IReadOnlyList<EngineImmunization> Immunizations);

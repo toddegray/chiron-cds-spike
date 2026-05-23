@@ -56,6 +56,16 @@ public class FhirToFactMapperTests
         Observations: Array.Empty<Observation>(),
         MedicationRequests: Array.Empty<MedicationRequest>(),
         Allergies: allergies,
+        Immunizations: Array.Empty<Immunization>(),
+        Encounter: null);
+
+    private static PatientChart BuildChartWithImmunizations(params Immunization[] immunizations) => new(
+        Patient: BuildPatient(),
+        Conditions: Array.Empty<Condition>(),
+        Observations: Array.Empty<Observation>(),
+        MedicationRequests: Array.Empty<MedicationRequest>(),
+        Allergies: Array.Empty<AllergyIntolerance>(),
+        Immunizations: immunizations,
         Encounter: null);
 
     [Fact]
@@ -150,7 +160,8 @@ public class FhirToFactMapperTests
     [InlineData("Bactrim DS", "bactrim")]
     [InlineData("", "")]
     [InlineData("   ", "")]
-    public void NormalizeSubstance_Reduces_To_Canonical_Identifier(string input, string expected)
+    [InlineData(null, "")]
+    public void NormalizeSubstance_Reduces_To_Canonical_Identifier(string? input, string expected)
     {
         FhirToFactMapper.NormalizeSubstance(input).Should().Be(expected);
     }
@@ -178,5 +189,105 @@ public class FhirToFactMapperTests
     public void ClassifyAllergen_Returns_Expected_Class(string substance, string? expected)
     {
         FhirToFactMapper.ClassifyAllergen(substance).Should().Be(expected);
+    }
+
+    // -------- Immunization projection --------
+
+    private static Hl7.Fhir.Model.Immunization BuildImmunization(
+        string? cvxCode = "140",
+        string? displayText = null,
+        string? occurrenceIso = "2025-10-15",
+        Hl7.Fhir.Model.Immunization.ImmunizationStatusCodes status = Hl7.Fhir.Model.Immunization.ImmunizationStatusCodes.Completed)
+    {
+        var imm = new Hl7.Fhir.Model.Immunization { Status = status };
+        if (cvxCode is not null || displayText is not null)
+        {
+            imm.VaccineCode = new CodeableConcept
+            {
+                Coding = cvxCode is null ? null : new List<Coding> { new("http://hl7.org/fhir/sid/cvx", cvxCode) },
+                Text = displayText,
+            };
+        }
+        if (occurrenceIso is not null)
+        {
+            imm.Occurrence = new FhirDateTime(occurrenceIso);
+        }
+        return imm;
+    }
+
+    [Fact]
+    public void Immunization_Cvx_Code_Maps_To_Influenza()
+    {
+        var inputs = _mapper.Project(BuildChartWithImmunizations(BuildImmunization(cvxCode: "140")));
+        inputs.Immunizations.Should().ContainSingle().Which.Vaccine.Should().Be("influenza");
+    }
+
+    [Fact]
+    public void Immunization_Falls_Back_To_Display_Text_When_No_Cvx()
+    {
+        var imm = BuildImmunization(cvxCode: null, displayText: "Influenza, seasonal");
+        var inputs = _mapper.Project(BuildChartWithImmunizations(imm));
+        inputs.Immunizations.Should().ContainSingle().Which.Vaccine.Should().Be("influenza");
+    }
+
+    [Fact]
+    public void Immunization_With_Unknown_Code_Is_Dropped()
+    {
+        var imm = BuildImmunization(cvxCode: "999999", displayText: "Some random vaccine");
+        var inputs = _mapper.Project(BuildChartWithImmunizations(imm));
+        inputs.Immunizations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Immunization_Missing_Occurrence_Date_Is_Dropped()
+    {
+        var inputs = _mapper.Project(BuildChartWithImmunizations(BuildImmunization(occurrenceIso: null)));
+        inputs.Immunizations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Immunization_Status_Is_Captured()
+    {
+        var imm = BuildImmunization(status: Hl7.Fhir.Model.Immunization.ImmunizationStatusCodes.NotDone);
+        var inputs = _mapper.Project(BuildChartWithImmunizations(imm));
+        inputs.Immunizations.Should().ContainSingle().Which.Status.Should().Be("not-done");
+    }
+
+    [Fact]
+    public void Immunization_Entered_In_Error_Is_Captured_Then_Filtered_By_Engine()
+    {
+        // The mapper preserves entered-in-error so an override-log audit
+        // can still see the chart-level event; the engine's
+        // LatestImmunization filter is responsible for excluding it from
+        // coverage computation. Asserting the mapper side here.
+        var imm = BuildImmunization(status: Hl7.Fhir.Model.Immunization.ImmunizationStatusCodes.EnteredInError);
+        var inputs = _mapper.Project(BuildChartWithImmunizations(imm));
+        inputs.Immunizations.Should().ContainSingle().Which.Status.Should().Be("entered-in-error");
+    }
+
+    [Theory]
+    [InlineData("140", "influenza")]
+    [InlineData("115", "tdap")]
+    [InlineData("187", "zoster_recombinant")]
+    [InlineData("215", "pneumococcal_pcv20")]
+    [InlineData("207", "covid19")]
+    [InlineData("99999", "")]
+    [InlineData("", "")]
+    [InlineData(null, "")]
+    public void NormalizeVaccine_Maps_Common_Cvx_Codes(string? input, string expected)
+    {
+        FhirToFactMapper.NormalizeVaccine(input).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("Influenza, seasonal", "influenza")]
+    [InlineData("Tdap booster", "tdap")]
+    [InlineData("Shingrix recombinant zoster", "zoster_recombinant")]
+    [InlineData("Pneumococcal PCV20", "pneumococcal_pcv20")]
+    [InlineData("COVID-19 mRNA vaccine", "covid19")]
+    [InlineData("Random unknown vaccine", "")]
+    public void NormalizeVaccine_Maps_Display_Text(string input, string expected)
+    {
+        FhirToFactMapper.NormalizeVaccine(input).Should().Be(expected);
     }
 }

@@ -134,7 +134,7 @@ public sealed class AppController : ControllerBase
         var tenant = _tenants.GetById(sess.TenantId);
         var chart = await _fetcher.FetchAsync(tenant, sess.AccessToken, sess.PatientId, sess.EncounterId, ct).ConfigureAwait(false);
         var inputs = _factMapper.Project(chart);
-        var result = _engine.Evaluate(inputs.Patient, inputs.Medications, inputs.Labs, inputs.Conditions, inputs.Allergies);
+        var result = _engine.Evaluate(inputs.Patient, inputs.Medications, inputs.Labs, inputs.Conditions, inputs.Allergies, inputs.Immunizations);
 
         var cards = new List<CdsCard>(result.Alerts.Count);
         foreach (var alert in result.Alerts)

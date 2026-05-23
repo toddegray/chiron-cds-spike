@@ -68,9 +68,10 @@ public sealed class Engine
         IEnumerable<Primitives.Medication> medications,
         IEnumerable<Primitives.Lab> labs,
         IEnumerable<Primitives.Condition> conditions,
-        IEnumerable<Primitives.Allergy>? allergies = null)
+        IEnumerable<Primitives.Allergy>? allergies = null,
+        IEnumerable<Primitives.Immunization>? immunizations = null)
     {
-        var ctx = new EvaluationContext(patient, medications, labs, conditions, allergies);
+        var ctx = new EvaluationContext(patient, medications, labs, conditions, allergies, immunizations);
         var stopwatch = Stopwatch.StartNew();
         var alerts = new List<Alert>();
         foreach (var rule in _rules.Values)

@@ -54,23 +54,26 @@ public sealed class PatientChartFetcher
             new[] { $"patient={patientId}", "status=active" }, "MedicationRequest", ct);
         var allergiesTask = TryFetchBundleAsync<AllergyIntolerance>(client,
             new[] { $"patient={patientId}" }, "AllergyIntolerance", ct);
+        var immunizationsTask = TryFetchBundleAsync<Immunization>(client,
+            new[] { $"patient={patientId}" }, "Immunization", ct);
         var encounterTask = string.IsNullOrEmpty(encounterId)
             ? Task.FromResult<Encounter?>(null)
             : TryReadAsync<Encounter>(client, encounterId, ct);
 
-        await Task.WhenAll(conditionsTask, observationsTask, medsTask, allergiesTask, encounterTask).ConfigureAwait(false);
+        await Task.WhenAll(conditionsTask, observationsTask, medsTask, allergiesTask, immunizationsTask, encounterTask).ConfigureAwait(false);
 
         var conditions = await conditionsTask.ConfigureAwait(false);
         var observations = await observationsTask.ConfigureAwait(false);
         var meds = await medsTask.ConfigureAwait(false);
         var allergies = await allergiesTask.ConfigureAwait(false);
+        var immunizations = await immunizationsTask.ConfigureAwait(false);
         var encounter = await encounterTask.ConfigureAwait(false);
 
         _log.LogInformation(
-            "Fetched chart for patient {PatientId}: {Conditions} conditions, {Observations} observations, {Meds} medications, {Allergies} allergies.",
-            patientId, conditions.Count, observations.Count, meds.Count, allergies.Count);
+            "Fetched chart for patient {PatientId}: {Conditions} conditions, {Observations} observations, {Meds} medications, {Allergies} allergies, {Immunizations} immunizations.",
+            patientId, conditions.Count, observations.Count, meds.Count, allergies.Count, immunizations.Count);
 
-        return new PatientChart(patient, conditions, observations, meds, allergies, encounter);
+        return new PatientChart(patient, conditions, observations, meds, allergies, immunizations, encounter);
     }
 
     private async Task<IReadOnlyList<TResource>> TryFetchBundleAsync<TResource>(

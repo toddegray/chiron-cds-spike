@@ -44,3 +44,12 @@ public sealed record Allergy(
     string? Reaction = null,
     bool Critical = false,
     bool Active = true);
+
+/// <summary>Engine-side immunization record. One entry per administered dose.</summary>
+/// <param name="Vaccine">Canonical vaccine name: "influenza", "tdap", "zoster_recombinant", "pneumococcal_pcv20", "covid19".</param>
+/// <param name="AdministeredAt">When the dose was administered.</param>
+/// <param name="Status">FHIR status string ("completed", "not-done", "entered-in-error"). Only "completed" doses count toward gap rules.</param>
+public sealed record Immunization(
+    string Vaccine,
+    DateTimeOffset AdministeredAt,
+    string Status = "completed");
