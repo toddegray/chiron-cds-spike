@@ -39,6 +39,9 @@ public class EngineTests
         engine.Rules.Select(r => r.Id).Should().Contain("beers.pim.elderly");
         engine.Rules.Select(r => r.Id).Should().Contain("uspstf.mammography.gap");
         engine.Rules.Select(r => r.Id).Should().Contain("uspstf.colorectal.gap");
+        engine.Rules.Select(r => r.Id).Should().Contain("hedis.dm.a1c.uncontrolled");
+        engine.Rules.Select(r => r.Id).Should().Contain("hedis.htn.bp.uncontrolled");
+        engine.Rules.Select(r => r.Id).Should().Contain("hedis.spc.statin_for_ascvd");
     }
 
     [Fact]
