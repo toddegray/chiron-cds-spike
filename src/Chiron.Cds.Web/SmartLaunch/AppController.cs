@@ -27,7 +27,7 @@ public sealed class AppController : ControllerBase
     private readonly FhirToFactMapper _factMapper;
     private readonly AlertToCdsCardMapper _cardMapper;
     private readonly DiagnosticReportWriter _reportWriter;
-    private readonly OverrideLog _overrideLog;
+    private readonly IOverrideLog _overrideLog;
     private readonly ILogger<AppController> _log;
 
     public AppController(
@@ -38,7 +38,7 @@ public sealed class AppController : ControllerBase
         FhirToFactMapper factMapper,
         AlertToCdsCardMapper cardMapper,
         DiagnosticReportWriter reportWriter,
-        OverrideLog overrideLog,
+        IOverrideLog overrideLog,
         ILogger<AppController> log)
     {
         _store = store;

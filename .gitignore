@@ -1,6 +1,12 @@
 ## .NET
 bin/
 obj/
+
+## SQLite runtime artefacts
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 *.user
 *.suo
 *.userprefs

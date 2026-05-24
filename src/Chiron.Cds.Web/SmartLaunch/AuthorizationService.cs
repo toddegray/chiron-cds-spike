@@ -18,6 +18,7 @@ public sealed class AuthorizationService
     private readonly SmartConfigurationClient _smartConfig;
     private readonly HttpClient _http;
     private readonly ITokenStore _store;
+    private readonly IdTokenValidator _idTokenValidator;
     private readonly ILogger<AuthorizationService> _log;
 
     public AuthorizationService(
@@ -25,12 +26,14 @@ public sealed class AuthorizationService
         SmartConfigurationClient smartConfig,
         HttpClient http,
         ITokenStore store,
+        IdTokenValidator idTokenValidator,
         ILogger<AuthorizationService> log)
     {
         _tenants = tenants;
         _smartConfig = smartConfig;
         _http = http;
         _store = store;
+        _idTokenValidator = idTokenValidator;
         _log = log;
     }
 
@@ -114,6 +117,18 @@ public sealed class AuthorizationService
         var token = await PostTokenAsync(smart.TokenEndpoint, tenant, code, pending, ct).ConfigureAwait(false);
         if (string.IsNullOrEmpty(token.Patient))
             _log.LogWarning("Token response did not include a patient context for tenant {Tenant}.", tenant.Id);
+
+        // id_token JWS validation. Skipped when the server omitted it
+        // (some sandbox configurations do not return one) — production
+        // SMART servers always include it for openid-flow apps.
+        if (!string.IsNullOrEmpty(token.IdToken))
+        {
+            await _idTokenValidator.ValidateAsync(token.IdToken, tenant, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            _log.LogWarning("Token response did not include an id_token for tenant {Tenant}; openid validation skipped.", tenant.Id);
+        }
 
         var session = new SmartSession(
             SessionId: RandomBase64Url(24),

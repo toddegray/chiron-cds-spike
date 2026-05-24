@@ -25,7 +25,7 @@ public sealed class PatientViewService
     private readonly FhirToFactMapper _factMapper;
     private readonly AlertToCdsCardMapper _cardMapper;
     private readonly TenantRegistry _tenants;
-    private readonly OverrideLog _overrideLog;
+    private readonly IOverrideLog _overrideLog;
     private readonly ILogger<PatientViewService> _log;
 
     public PatientViewService(
@@ -34,7 +34,7 @@ public sealed class PatientViewService
         FhirToFactMapper factMapper,
         AlertToCdsCardMapper cardMapper,
         TenantRegistry tenants,
-        OverrideLog overrideLog,
+        IOverrideLog overrideLog,
         ILogger<PatientViewService> log)
     {
         _engine = engine;

@@ -5,6 +5,7 @@ using Chiron.Cds.Web.CdsHooks;
 using Chiron.Cds.Web.Configuration;
 using Chiron.Cds.Web.FhirClient;
 using Chiron.Cds.Web.Mappers;
+using Chiron.Cds.Web.Persistence;
 using Chiron.Cds.Web.SmartLaunch;
 using Chiron.Cds.Web.Tenancy;
 
@@ -22,7 +23,14 @@ builder.Services
 
 builder.Services.AddSingleton<TenantRegistry>();
 builder.Services.AddSingleton<ITokenStore, InMemoryTokenStore>();
-builder.Services.AddSingleton<OverrideLog>();
+
+// OverrideLog: durable SQLite by default (file lives in
+// ContentRootPath/chiron-override-log.db). In-memory implementation
+// stays available for integration tests via WebApplicationFactory
+// service overrides.
+var overrideLogPath = Path.Combine(builder.Environment.ContentRootPath, "chiron-override-log.db");
+builder.Services.AddSingleton<IOverrideLog>(_ =>
+    new SqliteOverrideLog($"Data Source={overrideLogPath}"));
 builder.Services.AddSingleton<ReasoningEngine>(_ =>
     new ReasoningEngine().RegisterPack(typeof(MetforminRenalRule).Assembly));
 
@@ -33,6 +41,10 @@ builder.Services.AddHttpClient<SmartConfigurationClient>(c =>
 builder.Services.AddHttpClient<AuthorizationService>(c =>
 {
     c.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddHttpClient<IdTokenValidator>(c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(10);
 });
 
 builder.Services.AddSingleton<FhirToFactMapper>();

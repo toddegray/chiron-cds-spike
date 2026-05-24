@@ -7,14 +7,25 @@ namespace Chiron.Cds.Engine;
 /// <summary>
 /// Tracks when alerts fire and when clinicians override them. Keyed by
 /// <see cref="Alert.Fingerprint"/> so a single alert's fatigue history
-/// is queryable across all the patients on which it fired.
+/// is queryable across all the patients on which it fired. Two
+/// implementations: <see cref="InMemoryOverrideLog"/> for tests and the
+/// development demo, and the SQLite-backed implementation in the web
+/// project for production durability.
 /// </summary>
-/// <remarks>
-/// In-memory implementation for the spike. Production would back this
-/// with SQLite (matching the Python/TS engines) or Postgres; the
-/// concurrent dictionary keeps the API shape compatible with either.
-/// </remarks>
-public sealed class OverrideLog
+public interface IOverrideLog
+{
+    void RecordFire(Alert alert);
+    void RecordOverride(string fingerprint, string overriddenBy, string? reason = null);
+    /// <summary>Override-fatigue summary; rows ordered by override rate descending.</summary>
+    IReadOnlyList<FatigueRow> FatigueReport();
+}
+
+/// <summary>
+/// In-memory implementation. Suitable for tests, dev, and single-process
+/// demo — resets on restart. Use the SQLite-backed implementation in
+/// production.
+/// </summary>
+public sealed class InMemoryOverrideLog : IOverrideLog
 {
     private readonly ConcurrentDictionary<string, FingerprintStats> _stats = new();
 
@@ -35,13 +46,8 @@ public sealed class OverrideLog
             (_, existing) => existing with { Overrides = existing.Overrides + 1 });
     }
 
-    /// <summary>
-    /// Override-fatigue summary across every fingerprint the log has seen,
-    /// ordered by override rate descending (the noisiest alerts first).
-    /// </summary>
-    public IReadOnlyList<FatigueRow> FatigueReport()
-    {
-        return _stats
+    public IReadOnlyList<FatigueRow> FatigueReport() =>
+        _stats
             .Select(kv => new FatigueRow(
                 Fingerprint: kv.Key,
                 RuleId: kv.Value.RuleId,
@@ -51,7 +57,6 @@ public sealed class OverrideLog
             .OrderByDescending(r => r.OverrideRate)
             .ThenBy(r => r.Fingerprint, StringComparer.Ordinal)
             .ToArray();
-    }
 
     private sealed record FingerprintStats(string RuleId, int Fires, int Overrides);
 }
