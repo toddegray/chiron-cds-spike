@@ -35,6 +35,7 @@ public class EngineTests
         engine.Rules.Select(r => r.Id).Should().Contain("warfarin.nsaid.bleeding_risk");
         engine.Rules.Select(r => r.Id).Should().Contain("drug.allergy.collision");
         engine.Rules.Select(r => r.Id).Should().Contain("immunization.gap");
+        engine.Rules.Select(r => r.Id).Should().Contain("ascvd.10y.statin_eligible");
     }
 
     [Fact]

@@ -280,6 +280,69 @@ public class FhirToFactMapperTests
     }
 
     [Theory]
+    [InlineData("2093-3", "total_cholesterol", 215.0, "mg/dL")]
+    [InlineData("2085-9", "hdl_cholesterol", 52.0, "mg/dL")]
+    [InlineData("13457-7", "ldl_cholesterol_calculated", 140.0, "mg/dL")]
+    public void Lipid_Loincs_Project_To_Expected_Engine_Names(string loinc, string expectedName, double value, string unit)
+    {
+        var obs = new Observation
+        {
+            Code = new CodeableConcept { Coding = new List<Coding> { new("http://loinc.org", loinc) } },
+            Value = new Quantity { Value = (decimal)value, Unit = unit },
+            Effective = new FhirDateTime("2025-09-01"),
+        };
+        var chart = new PatientChart(
+            Patient: BuildPatient(),
+            Conditions: Array.Empty<Condition>(),
+            Observations: new[] { obs },
+            MedicationRequests: Array.Empty<MedicationRequest>(),
+            Allergies: Array.Empty<AllergyIntolerance>(),
+            Immunizations: Array.Empty<Hl7.Fhir.Model.Immunization>(),
+            Encounter: null);
+
+        var inputs = _mapper.Project(chart);
+        var lab = inputs.Labs.Should().ContainSingle().Subject;
+        lab.Name.Should().Be(expectedName);
+        lab.Value.Should().Be(value);
+    }
+
+    [Fact]
+    public void Observation_With_Bp_Components_Projects_Both_Systolic_And_Diastolic()
+    {
+        var bp = new Observation
+        {
+            Code = new CodeableConcept { Text = "Blood pressure" },
+            Effective = new FhirDateTime("2025-09-15"),
+            Component = new List<Observation.ComponentComponent>
+            {
+                new()
+                {
+                    Code = new CodeableConcept { Coding = new List<Coding> { new("http://loinc.org", "8480-6") } },
+                    Value = new Quantity { Value = 142m, Unit = "mmHg" },
+                },
+                new()
+                {
+                    Code = new CodeableConcept { Coding = new List<Coding> { new("http://loinc.org", "8462-4") } },
+                    Value = new Quantity { Value = 88m, Unit = "mmHg" },
+                },
+            },
+        };
+        var chart = new PatientChart(
+            Patient: BuildPatient(),
+            Conditions: Array.Empty<Condition>(),
+            Observations: new[] { bp },
+            MedicationRequests: Array.Empty<MedicationRequest>(),
+            Allergies: Array.Empty<AllergyIntolerance>(),
+            Immunizations: Array.Empty<Hl7.Fhir.Model.Immunization>(),
+            Encounter: null);
+
+        var inputs = _mapper.Project(chart);
+        inputs.Labs.Should().HaveCount(2);
+        inputs.Labs.Single(l => l.Name == "systolic_bp").Value.Should().Be(142);
+        inputs.Labs.Single(l => l.Name == "diastolic_bp").Value.Should().Be(88);
+    }
+
+    [Theory]
     [InlineData("Influenza, seasonal", "influenza")]
     [InlineData("Tdap booster", "tdap")]
     [InlineData("Shingrix recombinant zoster", "zoster_recombinant")]

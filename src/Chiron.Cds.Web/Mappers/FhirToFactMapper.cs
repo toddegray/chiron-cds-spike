@@ -31,6 +31,15 @@ public sealed class FhirToFactMapper
         ["33914-3"] = "egfr",
         ["4548-4"] = "hemoglobin_a1c",
         ["6301-6"] = "inr",
+        // Lipid panel for ASCVD risk
+        ["2093-3"] = "total_cholesterol",
+        ["2085-9"] = "hdl_cholesterol",
+        ["13457-7"] = "ldl_cholesterol_calculated",
+        // Vital signs used by risk scores
+        ["8480-6"] = "systolic_bp",
+        ["8462-4"] = "diastolic_bp",
+        // Smoking status (HL7 SDC)
+        ["72166-2"] = "tobacco_smoking_status",
     };
 
     private readonly ILogger<FhirToFactMapper> _log;
@@ -67,28 +76,44 @@ public sealed class FhirToFactMapper
 
     private IEnumerable<Lab> ProjectLab(Observation obs)
     {
-        if (obs.Code?.Coding is null) yield break;
-        foreach (var coding in obs.Code.Coding)
+        var takenAt = ExtractEffective(obs.Effective);
+
+        // Top-level value: typical lab pattern (creatinine, A1c, etc.).
+        if (obs.Code?.Coding is { Count: > 0 })
+        {
+            foreach (var lab in ProjectLabFromCodingAndValue(obs.Code.Coding, obs.Value, takenAt))
+                yield return lab;
+        }
+
+        // Panel-style observations carry the actual values in components
+        // (Cerner stores Blood pressure this way: top-level "Blood pressure",
+        // 8480-6 + 8462-4 in components).
+        foreach (var component in obs.Component ?? Enumerable.Empty<Observation.ComponentComponent>())
+        {
+            if (component.Code?.Coding is not { Count: > 0 }) continue;
+            foreach (var lab in ProjectLabFromCodingAndValue(component.Code.Coding, component.Value, takenAt))
+                yield return lab;
+        }
+    }
+
+    private IEnumerable<Lab> ProjectLabFromCodingAndValue(IEnumerable<Coding> codings, DataType? value, DateTimeOffset? takenAt)
+    {
+        foreach (var coding in codings)
         {
             if (coding.System != "http://loinc.org") continue;
             if (string.IsNullOrEmpty(coding.Code)) continue;
             if (!KnownLabsByLoinc.TryGetValue(coding.Code, out var engineName)) continue;
-            if (obs.Value is not Quantity q || q.Value is null)
-            {
-                _log.LogDebug("Skipping observation {Id}: no Quantity value.", obs.Id);
-                yield break;
-            }
-            DateTimeOffset? takenAt = obs.Effective switch
-            {
-                FhirDateTime fdt when DateTimeOffset.TryParse(fdt.Value, CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal, out var dto) => dto,
-                Period { Start: not null } p when DateTimeOffset.TryParse(p.Start, CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal, out var dto) => dto,
-                _ => null,
-            };
+            if (value is not Quantity q || q.Value is null) continue;
             yield return new Lab(engineName, (double)q.Value, q.Unit, takenAt);
         }
     }
+
+    private static DateTimeOffset? ExtractEffective(DataType? effective) => effective switch
+    {
+        FhirDateTime fdt when DateTimeOffset.TryParse(fdt.Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto) => dto,
+        Period { Start: not null } p when DateTimeOffset.TryParse(p.Start, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto) => dto,
+        _ => null,
+    };
 
     private IEnumerable<EngineCondition> ProjectCondition(FhirCondition condition)
     {

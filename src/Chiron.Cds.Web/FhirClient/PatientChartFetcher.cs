@@ -48,8 +48,12 @@ public sealed class PatientChartFetcher
 
         var conditionsTask = TryFetchBundleAsync<Condition>(client,
             new[] { $"patient={patientId}" }, "Condition", ct);
-        var observationsTask = TryFetchBundleAsync<Observation>(client,
-            new[] { $"patient={patientId}", "category=laboratory" }, "Observation", ct);
+        var labsTask = TryFetchBundleAsync<Observation>(client,
+            new[] { $"patient={patientId}", "category=laboratory" }, "Observation(labs)", ct);
+        var vitalsTask = TryFetchBundleAsync<Observation>(client,
+            new[] { $"patient={patientId}", "category=vital-signs" }, "Observation(vitals)", ct);
+        var socialHistoryTask = TryFetchBundleAsync<Observation>(client,
+            new[] { $"patient={patientId}", "category=social-history" }, "Observation(social-history)", ct);
         var medsTask = TryFetchBundleAsync<MedicationRequest>(client,
             new[] { $"patient={patientId}", "status=active" }, "MedicationRequest", ct);
         var allergiesTask = TryFetchBundleAsync<AllergyIntolerance>(client,
@@ -60,18 +64,21 @@ public sealed class PatientChartFetcher
             ? Task.FromResult<Encounter?>(null)
             : TryReadAsync<Encounter>(client, encounterId, ct);
 
-        await Task.WhenAll(conditionsTask, observationsTask, medsTask, allergiesTask, immunizationsTask, encounterTask).ConfigureAwait(false);
+        await Task.WhenAll(conditionsTask, labsTask, vitalsTask, socialHistoryTask, medsTask, allergiesTask, immunizationsTask, encounterTask).ConfigureAwait(false);
 
         var conditions = await conditionsTask.ConfigureAwait(false);
-        var observations = await observationsTask.ConfigureAwait(false);
+        var labs = await labsTask.ConfigureAwait(false);
+        var vitals = await vitalsTask.ConfigureAwait(false);
+        var social = await socialHistoryTask.ConfigureAwait(false);
+        var observations = labs.Concat(vitals).Concat(social).ToArray();
         var meds = await medsTask.ConfigureAwait(false);
         var allergies = await allergiesTask.ConfigureAwait(false);
         var immunizations = await immunizationsTask.ConfigureAwait(false);
         var encounter = await encounterTask.ConfigureAwait(false);
 
         _log.LogInformation(
-            "Fetched chart for patient {PatientId}: {Conditions} conditions, {Observations} observations, {Meds} medications, {Allergies} allergies, {Immunizations} immunizations.",
-            patientId, conditions.Count, observations.Count, meds.Count, allergies.Count, immunizations.Count);
+            "Fetched chart for patient {PatientId}: {Conditions} conditions, {Labs} labs, {Vitals} vitals, {Social} social-hx, {Meds} medications, {Allergies} allergies, {Immunizations} immunizations.",
+            patientId, conditions.Count, labs.Count, vitals.Count, social.Count, meds.Count, allergies.Count, immunizations.Count);
 
         return new PatientChart(patient, conditions, observations, meds, allergies, immunizations, encounter);
     }

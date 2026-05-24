@@ -95,6 +95,39 @@ public static class DrugAllergyRule
         ["enalapril"] = "ace_inhibitor",
         ["ramipril"] = "ace_inhibitor",
         ["captopril"] = "ace_inhibitor",
+        ["benazepril"] = "ace_inhibitor",
+        ["quinapril"] = "ace_inhibitor",
+        ["fosinopril"] = "ace_inhibitor",
+        // ARBs (angiotensin receptor blockers)
+        ["losartan"] = "arb",
+        ["valsartan"] = "arb",
+        ["irbesartan"] = "arb",
+        ["olmesartan"] = "arb",
+        ["telmisartan"] = "arb",
+        ["candesartan"] = "arb",
+        // Beta blockers
+        ["metoprolol"] = "beta_blocker",
+        ["atenolol"] = "beta_blocker",
+        ["carvedilol"] = "beta_blocker",
+        ["bisoprolol"] = "beta_blocker",
+        ["propranolol"] = "beta_blocker",
+        ["labetalol"] = "beta_blocker",
+        // Calcium channel blockers
+        ["amlodipine"] = "ccb",
+        ["nifedipine"] = "ccb",
+        ["diltiazem"] = "ccb",
+        ["verapamil"] = "ccb",
+        // Thiazide diuretics (treat as BP medication)
+        ["hydrochlorothiazide"] = "thiazide",
+        ["chlorthalidone"] = "thiazide",
+        ["chlorothiazide"] = "thiazide",
+        ["indapamide"] = "thiazide",
+    };
+
+    /// <summary>Drug classes that count as antihypertensive therapy for risk-score rules.</summary>
+    public static readonly IReadOnlySet<string> AntihypertensiveClasses = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "ace_inhibitor", "arb", "beta_blocker", "ccb", "thiazide",
     };
 
     private static Alert? Evaluate(EvaluationContext ctx)
