@@ -42,6 +42,7 @@ public class EngineTests
         engine.Rules.Select(r => r.Id).Should().Contain("hedis.dm.a1c.uncontrolled");
         engine.Rules.Select(r => r.Id).Should().Contain("hedis.htn.bp.uncontrolled");
         engine.Rules.Select(r => r.Id).Should().Contain("hedis.spc.statin_for_ascvd");
+        engine.Rules.Select(r => r.Id).Should().Contain("drug.dose.renal_threshold");
     }
 
     [Fact]
