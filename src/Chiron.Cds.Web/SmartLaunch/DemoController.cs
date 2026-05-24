@@ -43,6 +43,53 @@ public sealed class DemoController : ControllerBase
         _log = log;
     }
 
+    /// <summary>
+    /// Day View / worklist demo. Iterates every demo scenario, runs the
+    /// engine over each prefetched chart, and renders a row-per-patient
+    /// summary. This is the Mode B entry surface — what a clinician
+    /// would see at 7:30 AM before clinic starts, instead of clicking
+    /// through PowerChart's schedule.
+    /// </summary>
+    [HttpGet("today")]
+    public async Task<IActionResult> Today(CancellationToken ct)
+    {
+        var rows = new List<WorklistRow>();
+        var i = 0;
+        foreach (var scenario in Scenarios.Values)
+        {
+            i++;
+            var samplePath = ResolveSamplePath(scenario.Filename);
+            if (samplePath is null) continue;
+            var json = await System.IO.File.ReadAllTextAsync(samplePath, ct).ConfigureAwait(false);
+            var request = JsonSerializer.Deserialize<CdsHookRequest>(json);
+            if (request is null) continue;
+
+            var bundled = await _service.EvaluateBundledAsync(request, ct).ConfigureAwait(false);
+            var headline = bundled.Cards.FirstOrDefault();
+            var ageSex = bundled.Inputs is null
+                ? ""
+                : PatientHeader.From(bundled.Inputs, scenario.Title).AgeSex;
+            rows.Add(new WorklistRow(
+                PatientId: scenario.Id,
+                DisplayName: scenario.Title,
+                AgeSex: ageSex,
+                AppointmentTime: $"{8 + i}:{i * 5 % 60:D2} AM",
+                ChiefComplaint: scenario.Description,
+                HeadlineFlag: headline?.Summary,
+                HeadlineSeverity: headline?.Indicator,
+                AlertCount: bundled.Cards.Count));
+        }
+
+        var html = WorklistRenderer.Render(
+            heading: "Today's Clinic",
+            subline: "Patients ranked by who needs your attention. Click a row to drill into the Visit Brief.",
+            rows: rows,
+            banner: "Demo mode — synthetic schedule populated from the committed sample patients. Replace with Appointment?practitioner=<user>&date=today against a live FHIR endpoint.",
+            navBar: NavBar(),
+            drillBaseUrl: "/app/demo");
+        return Content(html, MediaTypeNames.Text.Html);
+    }
+
     /// <summary>Index: list available demo scenarios.</summary>
     [HttpGet]
     public IActionResult Index()
@@ -135,7 +182,8 @@ public sealed class DemoController : ControllerBase
 
     private static string NavBar() =>
         "<span class=\"brand\">Chiron CDS</span>"
-        + "<a href=\"/app/demo\">Demo</a>"
+        + "<a href=\"/app/demo\">Demos</a>"
+        + "<a href=\"/app/demo/today\">Today's Clinic</a>"
         + "<a href=\"/cds-services\">CDS Hooks discovery</a>"
         + "<a href=\"/smart/launch?iss=https://fhir-ehr-code.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d\">SMART launch</a>"
         + "<a href=\"/health\">Health</a>";

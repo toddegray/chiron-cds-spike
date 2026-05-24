@@ -58,4 +58,22 @@ public class DemoControllerTests : IClassFixture<WebApplicationFactory<Program>>
         var resp = await client.GetAsync("/app/demo/no-such-scenario");
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task Today_Worklist_Renders_With_Drill_Link_To_Annie_Smith()
+    {
+        using var client = _factory.CreateClient();
+        var resp = await client.GetAsync("/app/demo/today");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await resp.Content.ReadAsStringAsync();
+
+        body.Should().Contain("Today's Clinic",
+            because: "the worklist page renders the day-view heading");
+        body.Should().Contain("href=\"/app/demo/annie-smith\"",
+            because: "each row drills into the Visit Brief for that patient");
+        body.Should().Contain("CHA",
+            because: "Annie Smith's headline card is CHA₂DS₂-VASc and her flag surfaces it");
+        body.Should().Contain("Need attention",
+            because: "the summary stats are part of the page header");
+    }
 }
