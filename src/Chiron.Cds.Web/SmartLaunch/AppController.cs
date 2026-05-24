@@ -72,8 +72,8 @@ public sealed class AppController : ControllerBase
 
         try
         {
-            var (cards, alertCount) = await EvaluateAsync(sess, ct).ConfigureAwait(false);
-            return Content(RenderAlertsHtml(sess, cards, alertCount), MediaTypeNames.Text.Html);
+            var (cards, _, header) = await EvaluateAsync(sess, ct).ConfigureAwait(false);
+            return Content(RenderAlertsHtml(sess, cards, header), MediaTypeNames.Text.Html);
         }
         catch (Hl7.Fhir.Rest.FhirOperationException ex)
         {
@@ -95,7 +95,7 @@ public sealed class AppController : ControllerBase
         var sess = _store.GetSession(session);
         if (sess is null) return NotFound("Session not found or expired.");
 
-        var (cards, _) = await EvaluateAsync(sess, ct).ConfigureAwait(false);
+        var (cards, _, _) = await EvaluateAsync(sess, ct).ConfigureAwait(false);
         return Ok(new CdsHookResponse(cards));
     }
 
@@ -112,7 +112,7 @@ public sealed class AppController : ControllerBase
         if (sess is null) return NotFound("Session not found or expired.");
 
         var tenant = _tenants.GetById(sess.TenantId);
-        var (_, alerts) = await EvaluateForSessionAsync(sess, ct).ConfigureAwait(false);
+        var (_, alerts, _) = await EvaluateForSessionAsync(sess, ct).ConfigureAwait(false);
         var alert = alerts.FirstOrDefault(a => a.Fingerprint == fingerprint);
         if (alert is null) return NotFound("Alert with that fingerprint not found in current evaluation.");
 
@@ -121,14 +121,14 @@ public sealed class AppController : ControllerBase
         return Ok(new { reportId, fingerprint = alert.Fingerprint });
     }
 
-    private async Task<(IReadOnlyList<CdsCard> Cards, int AlertCount)> EvaluateAsync(
+    private async Task<(IReadOnlyList<CdsCard> Cards, int AlertCount, PatientHeader? Header)> EvaluateAsync(
         SmartSession sess, CancellationToken ct)
     {
-        var (cards, alerts) = await EvaluateForSessionAsync(sess, ct).ConfigureAwait(false);
-        return (cards, alerts.Count);
+        var (cards, alerts, header) = await EvaluateForSessionAsync(sess, ct).ConfigureAwait(false);
+        return (cards, alerts.Count, header);
     }
 
-    private async Task<(IReadOnlyList<CdsCard> Cards, IReadOnlyList<Alert> Alerts)> EvaluateForSessionAsync(
+    private async Task<(IReadOnlyList<CdsCard> Cards, IReadOnlyList<Alert> Alerts, PatientHeader Header)> EvaluateForSessionAsync(
         SmartSession sess, CancellationToken ct)
     {
         var tenant = _tenants.GetById(sess.TenantId);
@@ -142,15 +142,18 @@ public sealed class AppController : ControllerBase
             _overrideLog.RecordFire(alert);
             cards.Add(_cardMapper.Map(alert));
         }
+
+        var header = PatientHeader.From(inputs, displayName: $"Patient {sess.PatientId}");
         _log.LogInformation("Evaluated session {Session}: {Count} alerts.", sess.SessionId, result.Alerts.Count);
-        return (cards, result.Alerts);
+        return (cards, result.Alerts, header);
     }
 
-    private static string RenderAlertsHtml(SmartSession sess, IReadOnlyList<CdsCard> cards, int alertCount) =>
+    private static string RenderAlertsHtml(SmartSession sess, IReadOnlyList<CdsCard> cards, PatientHeader? header) =>
         AlertHtmlRenderer.Render(
             heading: "Chiron CDS",
             subline: $"Session for patient {sess.PatientId} on tenant {sess.TenantId}.",
-            cards: cards);
+            cards: cards,
+            patient: header);
 
     private static string RenderLandingHtml(string message) =>
         $"<!doctype html><html><body><h1>Chiron CDS</h1><p>{WebEncode(message)}</p></body></html>";

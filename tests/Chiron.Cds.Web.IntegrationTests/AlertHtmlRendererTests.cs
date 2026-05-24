@@ -74,7 +74,8 @@ public class AlertHtmlRendererTests
     {
         var html = AlertHtmlRenderer.Render("Test", "sub", new[] { MakeCard("d") });
         html.Should().Contain("abc123def456");
-        html.Should().Contain("Fingerprint:");
+        html.Should().Contain("Fingerprint",
+            because: "the fingerprint label appears in the per-card fingerprint chip");
     }
 
     [Fact]
@@ -82,7 +83,8 @@ public class AlertHtmlRendererTests
     {
         var html = AlertHtmlRenderer.Render("Test", "sub", new[] { MakeCard("d") });
         html.Should().Contain("Bleeding Risk");
-        html.Should().Contain("<code>bleeding_risk</code>");
+        html.Should().Contain("bleeding_risk",
+            because: "the override-reason code is rendered as a code element");
     }
 
     [Fact]
@@ -107,6 +109,69 @@ public class AlertHtmlRendererTests
             navBar: "<a href=\"/\">home</a>");
         html.Should().Contain("class=\"navbar\"");
         html.Should().Contain("<a href=\"/\">home</a>");
+    }
+
+    [Fact]
+    public void Renders_Patient_Header_When_Provided()
+    {
+        var patient = new PatientHeader(
+            DisplayName: "SMITH, ANNIE",
+            AgeSex: "35y · Female",
+            ActiveConditions: new[] { "Diabetes", "Hypertension" },
+            ActiveAllergies: new[] { "Sulfa" },
+            ActiveMedicationCount: 3,
+            CompletedImmunizationCount: 5,
+            CompletedProcedureCount: 2);
+
+        var html = AlertHtmlRenderer.Render(
+            heading: "Test",
+            subline: "sub",
+            cards: Array.Empty<CdsCard>(),
+            patient: patient);
+
+        html.Should().Contain("SMITH, ANNIE");
+        html.Should().Contain("35y");
+        html.Should().Contain("Female");
+        html.Should().Contain("Diabetes");
+        html.Should().Contain("Hypertension");
+        html.Should().Contain("Sulfa");
+        html.Should().Contain("allergy-chips",
+            because: "allergies render with the distinctive critical-tone chip class");
+
+        // Asserting the numeric stats appear in their respective stat-num blocks
+        // catches a mutation that swaps value/label or reorders the stats.
+        html.Should().MatchRegex("<div class=\"stat-num\">3</div>\\s*<div class=\"stat-label\">Active meds</div>");
+        html.Should().MatchRegex("<div class=\"stat-num\">5</div>\\s*<div class=\"stat-label\">Immunizations</div>");
+        html.Should().MatchRegex("<div class=\"stat-num\">2</div>\\s*<div class=\"stat-label\">Procedures</div>");
+        html.Should().MatchRegex("<div class=\"stat-num\">2</div>\\s*<div class=\"stat-label\">Active conditions</div>");
+        html.Should().MatchRegex("<div class=\"stat-num\">1</div>\\s*<div class=\"stat-label\">Allergies</div>");
+    }
+
+    [Fact]
+    public void Renders_Empty_State_When_No_Cards()
+    {
+        var html = AlertHtmlRenderer.Render(
+            heading: "Test",
+            subline: "sub",
+            cards: Array.Empty<CdsCard>());
+        html.Should().Contain("Nothing needs your attention");
+    }
+
+    [Fact]
+    public void Patient_Header_Is_Html_Encoded()
+    {
+        var hostile = new PatientHeader(
+            DisplayName: "<script>alert(1)</script>",
+            AgeSex: "x",
+            ActiveConditions: new[] { "<b>evil</b>" },
+            ActiveAllergies: Array.Empty<string>(),
+            ActiveMedicationCount: 0,
+            CompletedImmunizationCount: 0,
+            CompletedProcedureCount: 0);
+        var html = AlertHtmlRenderer.Render("Test", "sub", Array.Empty<CdsCard>(), patient: hostile);
+        html.Should().NotContain("<script>alert");
+        html.Should().Contain("&lt;script&gt;");
+        html.Should().NotContain("<b>evil</b>");
     }
 
     [Fact]

@@ -48,13 +48,25 @@ public sealed class PatientViewService
 
     public async Task<CdsHookResponse> EvaluateAsync(CdsHookRequest request, CancellationToken ct)
     {
+        var bundled = await EvaluateBundledAsync(request, ct).ConfigureAwait(false);
+        return new CdsHookResponse(bundled.Cards);
+    }
+
+    /// <summary>
+    /// Internal variant that returns both the engine inputs (so callers can
+    /// render the patient-header rail) and the cards. The CDS Hooks
+    /// endpoint sticks to <see cref="EvaluateAsync"/>; the demo + post-launch
+    /// UI use this bundled form to populate the patient summary.
+    /// </summary>
+    internal async Task<BundledEvaluation> EvaluateBundledAsync(CdsHookRequest request, CancellationToken ct)
+    {
         ArgumentNullException.ThrowIfNull(request);
 
         var patientId = ReadPatientIdFromContext(request.Context);
         if (string.IsNullOrEmpty(patientId))
         {
             _log.LogWarning("CDS Hook request {Instance} missing patientId in context.", request.HookInstance);
-            return new CdsHookResponse(Array.Empty<CdsCard>());
+            return BundledEvaluation.Empty;
         }
 
         PatientChart chart;
@@ -77,7 +89,7 @@ public sealed class PatientViewService
             _log.LogWarning(
                 "CDS Hook request {Instance} has neither prefetch nor fhirAuthorization. Cannot evaluate.",
                 request.HookInstance);
-            return new CdsHookResponse(Array.Empty<CdsCard>());
+            return BundledEvaluation.Empty;
         }
 
         var inputs = _factMapper.Project(chart);
@@ -88,7 +100,7 @@ public sealed class PatientViewService
             _overrideLog.RecordFire(alert);
             cards.Add(_cardMapper.Map(alert));
         }
-        return new CdsHookResponse(cards);
+        return new BundledEvaluation(inputs, cards);
     }
 
     private static string? ReadPatientIdFromContext(JsonElement context)
@@ -176,4 +188,16 @@ public sealed class PatientViewService
             return null;
         }
     }
+}
+
+/// <summary>
+/// Engine inputs paired with the CDS cards an evaluation produced. The
+/// CDS Hooks endpoint only surfaces the cards; the post-launch UI also
+/// wants the inputs to render the patient-header rail.
+/// </summary>
+internal sealed record BundledEvaluation(
+    Chiron.Cds.Web.Mappers.EngineInputs? Inputs,
+    IReadOnlyList<CdsCard> Cards)
+{
+    public static readonly BundledEvaluation Empty = new(Inputs: null, Cards: Array.Empty<CdsCard>());
 }

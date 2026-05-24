@@ -116,17 +116,22 @@ public sealed class DemoController : ControllerBase
 
         _log.LogInformation("Demo rendering scenario {Id} (patient {Patient}).", id, scenario.PatientId);
 
-        var response = await _service.EvaluateAsync(request, ct).ConfigureAwait(false);
+        var bundled = await _service.EvaluateBundledAsync(request, ct).ConfigureAwait(false);
+        var patientHeader = bundled.Inputs is null
+            ? null
+            : PatientHeader.From(bundled.Inputs, scenario.Title);
 
         var html = AlertHtmlRenderer.Render(
             heading: scenario.Title,
             subline: $"Patient {scenario.PatientId} — {scenario.Description}",
-            cards: response.Cards,
+            cards: bundled.Cards,
             banner: "Demo mode — running the live engine over a prefetched real Cerner chart. No SMART session, no live FHIR fetch.",
-            navBar: NavBar());
+            navBar: NavBar(),
+            patient: patientHeader);
 
         return Content(html, MediaTypeNames.Text.Html);
     }
+
 
     private static string NavBar() =>
         "<span class=\"brand\">Chiron CDS</span>"
