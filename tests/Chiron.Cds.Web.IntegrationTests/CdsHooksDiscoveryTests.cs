@@ -25,7 +25,7 @@ public class CdsHooksDiscoveryTests : IClassFixture<WebApplicationFactory<Progra
     }
 
     [Fact]
-    public async Task Discovery_Returns_PatientView_Service()
+    public async Task Discovery_Returns_All_Four_Hook_Services()
     {
         using var client = _factory.CreateClient();
         var resp = await client.GetAsync("/cds-services");
@@ -33,13 +33,22 @@ public class CdsHooksDiscoveryTests : IClassFixture<WebApplicationFactory<Progra
 
         var body = await resp.Content.ReadFromJsonAsync<CdsServicesResponse>();
         body.Should().NotBeNull();
-        body!.Services.Should().ContainSingle();
-        var svc = body.Services.Single();
-        svc.Hook.Should().Be("patient-view");
-        svc.Id.Should().Be("chiron-patient-view");
-        svc.Prefetch.Should().NotBeNull();
-        svc.Prefetch!.Should().ContainKey("patient");
-        svc.Prefetch.Should().ContainKey("observations");
+        body!.Services.Should().HaveCount(4);
+        body.Services.Select(s => s.Hook).Should().BeEquivalentTo(new[]
+        {
+            "patient-view", "order-select", "order-sign", "medication-prescribe",
+        });
+        body.Services.Select(s => s.Id).Should().BeEquivalentTo(new[]
+        {
+            "chiron-patient-view", "chiron-order-select", "chiron-order-sign", "chiron-medication-prescribe",
+        });
+        foreach (var svc in body.Services)
+        {
+            svc.Prefetch.Should().NotBeNull();
+            svc.Prefetch!.Should().ContainKey("patient");
+            svc.Prefetch.Should().ContainKey("allergies",
+                because: "every Chiron service prefetches allergies — drug-allergy is on the hot path");
+        }
     }
 
     [Fact]
@@ -53,6 +62,26 @@ public class CdsHooksDiscoveryTests : IClassFixture<WebApplicationFactory<Progra
             context = new { patientId = "no-prefetch-no-auth" },
         };
         var resp = await client.PostAsJsonAsync("/cds-services/chiron-patient-view", request);
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("cards").GetArrayLength().Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("chiron-patient-view")]
+    [InlineData("chiron-order-select")]
+    [InlineData("chiron-order-sign")]
+    [InlineData("chiron-medication-prescribe")]
+    public async Task Hook_Services_Accept_Posts_And_Return_Empty_Cards_Without_Prefetch(string serviceId)
+    {
+        using var client = _factory.CreateClient();
+        var request = new
+        {
+            hook = serviceId.Replace("chiron-", ""),
+            hookInstance = Guid.NewGuid().ToString(),
+            context = new { patientId = "no-prefetch-test" },
+        };
+        var resp = await client.PostAsJsonAsync($"/cds-services/{serviceId}", request);
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("cards").GetArrayLength().Should().Be(0);
