@@ -37,6 +37,8 @@ public class EngineTests
         engine.Rules.Select(r => r.Id).Should().Contain("immunization.gap");
         engine.Rules.Select(r => r.Id).Should().Contain("ascvd.10y.statin_eligible");
         engine.Rules.Select(r => r.Id).Should().Contain("beers.pim.elderly");
+        engine.Rules.Select(r => r.Id).Should().Contain("uspstf.mammography.gap");
+        engine.Rules.Select(r => r.Id).Should().Contain("uspstf.colorectal.gap");
     }
 
     [Fact]

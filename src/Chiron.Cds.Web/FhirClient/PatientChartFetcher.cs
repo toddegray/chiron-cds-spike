@@ -60,11 +60,13 @@ public sealed class PatientChartFetcher
             new[] { $"patient={patientId}" }, "AllergyIntolerance", ct);
         var immunizationsTask = TryFetchBundleAsync<Immunization>(client,
             new[] { $"patient={patientId}" }, "Immunization", ct);
+        var proceduresTask = TryFetchBundleAsync<Procedure>(client,
+            new[] { $"patient={patientId}" }, "Procedure", ct);
         var encounterTask = string.IsNullOrEmpty(encounterId)
             ? Task.FromResult<Encounter?>(null)
             : TryReadAsync<Encounter>(client, encounterId, ct);
 
-        await Task.WhenAll(conditionsTask, labsTask, vitalsTask, socialHistoryTask, medsTask, allergiesTask, immunizationsTask, encounterTask).ConfigureAwait(false);
+        await Task.WhenAll(conditionsTask, labsTask, vitalsTask, socialHistoryTask, medsTask, allergiesTask, immunizationsTask, proceduresTask, encounterTask).ConfigureAwait(false);
 
         var conditions = await conditionsTask.ConfigureAwait(false);
         var labs = await labsTask.ConfigureAwait(false);
@@ -74,13 +76,14 @@ public sealed class PatientChartFetcher
         var meds = await medsTask.ConfigureAwait(false);
         var allergies = await allergiesTask.ConfigureAwait(false);
         var immunizations = await immunizationsTask.ConfigureAwait(false);
+        var procedures = await proceduresTask.ConfigureAwait(false);
         var encounter = await encounterTask.ConfigureAwait(false);
 
         _log.LogInformation(
-            "Fetched chart for patient {PatientId}: {Conditions} conditions, {Labs} labs, {Vitals} vitals, {Social} social-hx, {Meds} medications, {Allergies} allergies, {Immunizations} immunizations.",
-            patientId, conditions.Count, labs.Count, vitals.Count, social.Count, meds.Count, allergies.Count, immunizations.Count);
+            "Fetched chart for patient {PatientId}: {Conditions} conditions, {Labs} labs, {Vitals} vitals, {Social} social-hx, {Meds} medications, {Allergies} allergies, {Immunizations} immunizations, {Procedures} procedures.",
+            patientId, conditions.Count, labs.Count, vitals.Count, social.Count, meds.Count, allergies.Count, immunizations.Count, procedures.Count);
 
-        return new PatientChart(patient, conditions, observations, meds, allergies, immunizations, encounter);
+        return new PatientChart(patient, conditions, observations, meds, allergies, immunizations, procedures, encounter);
     }
 
     private async Task<IReadOnlyList<TResource>> TryFetchBundleAsync<TResource>(

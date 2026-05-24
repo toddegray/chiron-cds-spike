@@ -57,6 +57,7 @@ public class FhirToFactMapperTests
         MedicationRequests: Array.Empty<MedicationRequest>(),
         Allergies: allergies,
         Immunizations: Array.Empty<Immunization>(),
+        Procedures: Array.Empty<Procedure>(),
         Encounter: null);
 
     private static PatientChart BuildChartWithImmunizations(params Immunization[] immunizations) => new(
@@ -66,6 +67,17 @@ public class FhirToFactMapperTests
         MedicationRequests: Array.Empty<MedicationRequest>(),
         Allergies: Array.Empty<AllergyIntolerance>(),
         Immunizations: immunizations,
+        Procedures: Array.Empty<Procedure>(),
+        Encounter: null);
+
+    private static PatientChart BuildChartWithProcedures(params Procedure[] procedures) => new(
+        Patient: BuildPatient(),
+        Conditions: Array.Empty<Condition>(),
+        Observations: Array.Empty<Observation>(),
+        MedicationRequests: Array.Empty<MedicationRequest>(),
+        Allergies: Array.Empty<AllergyIntolerance>(),
+        Immunizations: Array.Empty<Immunization>(),
+        Procedures: procedures,
         Encounter: null);
 
     [Fact]
@@ -298,6 +310,7 @@ public class FhirToFactMapperTests
             MedicationRequests: Array.Empty<MedicationRequest>(),
             Allergies: Array.Empty<AllergyIntolerance>(),
             Immunizations: Array.Empty<Hl7.Fhir.Model.Immunization>(),
+            Procedures: Array.Empty<Hl7.Fhir.Model.Procedure>(),
             Encounter: null);
 
         var inputs = _mapper.Project(chart);
@@ -334,6 +347,7 @@ public class FhirToFactMapperTests
             MedicationRequests: Array.Empty<MedicationRequest>(),
             Allergies: Array.Empty<AllergyIntolerance>(),
             Immunizations: Array.Empty<Hl7.Fhir.Model.Immunization>(),
+            Procedures: Array.Empty<Hl7.Fhir.Model.Procedure>(),
             Encounter: null);
 
         var inputs = _mapper.Project(chart);
@@ -352,5 +366,102 @@ public class FhirToFactMapperTests
     public void NormalizeVaccine_Maps_Display_Text(string input, string expected)
     {
         FhirToFactMapper.NormalizeVaccine(input).Should().Be(expected);
+    }
+
+    // -------- Procedure projection --------
+
+    private static Hl7.Fhir.Model.Procedure BuildProcedure(
+        string? cptCode = "77067",
+        string? cptSystem = "http://www.ama-assn.org/go/cpt",
+        string? displayText = null,
+        string? performedIso = "2024-09-15",
+        EventStatus status = EventStatus.Completed)
+    {
+        var proc = new Hl7.Fhir.Model.Procedure { Status = status };
+        if (cptCode is not null || displayText is not null)
+        {
+            proc.Code = new CodeableConcept
+            {
+                Coding = cptCode is null ? null : new List<Coding>
+                {
+                    new(cptSystem ?? "", cptCode),
+                },
+                Text = displayText,
+            };
+        }
+        if (performedIso is not null)
+        {
+            proc.Performed = new FhirDateTime(performedIso);
+        }
+        return proc;
+    }
+
+    [Theory]
+    [InlineData("77067", "mammography")]
+    [InlineData("77065", "mammography")]
+    [InlineData("45378", "colonoscopy")]
+    [InlineData("45385", "colonoscopy")]
+    [InlineData("45330", "sigmoidoscopy")]
+    [InlineData("82270", "fit_screening")]
+    [InlineData("88142", "cervical_cytology")]
+    [InlineData("77080", "dxa_scan")]
+    public void Procedure_Cpt_Codes_Map_To_Canonical_Names(string cpt, string expected)
+    {
+        var inputs = _mapper.Project(BuildChartWithProcedures(BuildProcedure(cptCode: cpt)));
+        inputs.Procedures.Should().ContainSingle().Which.Kind.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("Screening mammography, bilateral", "mammography")]
+    [InlineData("Colonoscopy with polypectomy", "colonoscopy")]
+    [InlineData("Flexible sigmoidoscopy", "sigmoidoscopy")]
+    [InlineData("Fecal immunochemical test", "fit_screening")]
+    [InlineData("Pap smear (cervical cytology)", "cervical_cytology")]
+    [InlineData("DEXA bone density", "dxa_scan")]
+    public void Procedure_Display_Text_Falls_Back_When_No_Code(string display, string expected)
+    {
+        var inputs = _mapper.Project(BuildChartWithProcedures(BuildProcedure(cptCode: null, displayText: display)));
+        inputs.Procedures.Should().ContainSingle().Which.Kind.Should().Be(expected);
+    }
+
+    [Fact]
+    public void Procedure_Unknown_Code_And_Unknown_Display_Is_Dropped()
+    {
+        var inputs = _mapper.Project(BuildChartWithProcedures(BuildProcedure(cptCode: "99999", displayText: "Random procedure")));
+        inputs.Procedures.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Procedure_Missing_Performed_Date_Is_Dropped()
+    {
+        var inputs = _mapper.Project(BuildChartWithProcedures(BuildProcedure(performedIso: null)));
+        inputs.Procedures.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(EventStatus.Completed, "completed")]
+    [InlineData(EventStatus.InProgress, "in-progress")]
+    [InlineData(EventStatus.NotDone, "not-done")]
+    [InlineData(EventStatus.EnteredInError, "entered-in-error")]
+    [InlineData(EventStatus.Stopped, "stopped")]
+    [InlineData(EventStatus.OnHold, "on-hold")]
+    [InlineData(EventStatus.Preparation, "preparation")]
+    [InlineData(EventStatus.Unknown, "unknown")]
+    public void Procedure_Status_Maps_To_Engine_String(EventStatus fhir, string expected)
+    {
+        var inputs = _mapper.Project(BuildChartWithProcedures(BuildProcedure(status: fhir)));
+        inputs.Procedures.Should().ContainSingle().Which.Status.Should().Be(expected);
+    }
+
+    [Fact]
+    public void Procedure_Cpt_Code_Without_System_Uses_Bare_Code_Fallback()
+    {
+        // Cerner and some other EHRs return Procedure.Code.Coding entries with
+        // the system field empty when the local CPT catalog is the implicit
+        // source. Our ProcedureCodeToCanonical table has bare-code keys
+        // ("|45378") for this case; the dispatch must fall back to them.
+        var inputs = _mapper.Project(BuildChartWithProcedures(
+            BuildProcedure(cptCode: "45378", cptSystem: "")));
+        inputs.Procedures.Should().ContainSingle().Which.Kind.Should().Be("colonoscopy");
     }
 }

@@ -1171,6 +1171,61 @@
           }
         }
       ]
+    },
+    "procedures": {
+      "resourceType": "Bundle",
+      "id": "3aeb080b-f25d-414a-a568-902a82109c2d",
+      "type": "searchset",
+      "link": [
+        {
+          "relation": "self",
+          "url": "https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/Procedure?patient=12674028"
+        }
+      ],
+      "entry": [
+        {
+          "fullUrl": "https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/Procedure/2572976083",
+          "resource": {
+            "resourceType": "Procedure",
+            "id": "2572976083",
+            "meta": {
+              "versionId": "0",
+              "lastUpdated": "2021-03-12T16:07:37Z"
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>Procedure</b></p><p><b>Patient</b>: SMITH, ANNIE</p><p><b>Procedure</b>: Appendectomy; for ruptured appendix with abscess or generalized peritonitis</p><p><b>Date</b>: 2005</p><p><b>Status</b>: Completed</p><p><b>Recorder</b>: Pivonka, Fran</p></div>"
+            },
+            "status": "completed",
+            "code": {
+              "coding": [
+                {
+                  "system": "http://www.ama-assn.org/go/cpt",
+                  "code": "44960",
+                  "display": "Appendectomy; for ruptured appendix with abscess or generalized peritonitis",
+                  "userSelected": true
+                }
+              ],
+              "text": "Appendectomy; for ruptured appendix with abscess or generalized peritonitis"
+            },
+            "subject": {
+              "reference": "Patient/12674028",
+              "display": "SMITH, ANNIE"
+            },
+            "encounter": {
+              "reference": "Encounter/97895449"
+            },
+            "performedDateTime": "2005",
+            "recorder": {
+              "reference": "Practitioner/12742563",
+              "display": "Pivonka, Fran"
+            }
+          },
+          "search": {
+            "mode": "match"
+          }
+        }
+      ]
     }
   }
 }

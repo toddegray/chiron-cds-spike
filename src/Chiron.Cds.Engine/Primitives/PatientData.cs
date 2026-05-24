@@ -53,3 +53,12 @@ public sealed record Immunization(
     string Vaccine,
     DateTimeOffset AdministeredAt,
     string Status = "completed");
+
+/// <summary>Engine-side procedure record. One entry per performed procedure.</summary>
+/// <param name="Kind">Canonical procedure name: "mammography", "colonoscopy", "sigmoidoscopy", "fit_screening", "fobt", "cervical_cytology", "dxa_scan".</param>
+/// <param name="PerformedAt">When the procedure was performed.</param>
+/// <param name="Status">FHIR status ("completed", "in-progress", etc.). Only "completed" satisfies surveillance interval rules.</param>
+public sealed record Procedure(
+    string Kind,
+    DateTimeOffset PerformedAt,
+    string Status = "completed");

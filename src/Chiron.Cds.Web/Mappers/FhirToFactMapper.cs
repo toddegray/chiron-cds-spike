@@ -10,10 +10,12 @@ using EngineCondition = Chiron.Cds.Engine.Primitives.Condition;
 using EngineMedication = Chiron.Cds.Engine.Primitives.Medication;
 using EngineAllergy = Chiron.Cds.Engine.Primitives.Allergy;
 using EngineImmunization = Chiron.Cds.Engine.Primitives.Immunization;
+using EngineProcedure = Chiron.Cds.Engine.Primitives.Procedure;
 using FhirPatient = Hl7.Fhir.Model.Patient;
 using FhirCondition = Hl7.Fhir.Model.Condition;
 using FhirAllergyIntolerance = Hl7.Fhir.Model.AllergyIntolerance;
 using FhirImmunization = Hl7.Fhir.Model.Immunization;
+using FhirProcedure = Hl7.Fhir.Model.Procedure;
 
 namespace Chiron.Cds.Web.Mappers;
 
@@ -58,7 +60,8 @@ public sealed class FhirToFactMapper
         var medications = chart.MedicationRequests.SelectMany(ProjectMedication).ToArray();
         var allergies = chart.Allergies.SelectMany(ProjectAllergy).ToArray();
         var immunizations = chart.Immunizations.SelectMany(ProjectImmunization).ToArray();
-        return new EngineInputs(patient, medications, labs, conditions, allergies, immunizations);
+        var procedures = chart.Procedures.SelectMany(ProjectProcedure).ToArray();
+        return new EngineInputs(patient, medications, labs, conditions, allergies, immunizations, procedures);
     }
 
     private EnginePatient ProjectPatient(FhirPatient patient)
@@ -243,6 +246,122 @@ public sealed class FhirToFactMapper
         return string.Empty;
     }
 
+    private IEnumerable<EngineProcedure> ProjectProcedure(FhirProcedure proc)
+    {
+        // Only completed procedures satisfy surveillance intervals.
+        // Other statuses (in-progress, not-done, entered-in-error,
+        // unknown) are preserved with their status string so the
+        // override log can audit them; the engine's LatestProcedure
+        // filter excludes anything but "completed".
+        string status = proc.Status switch
+        {
+            EventStatus.Completed => "completed",
+            EventStatus.InProgress => "in-progress",
+            EventStatus.NotDone => "not-done",
+            EventStatus.EnteredInError => "entered-in-error",
+            EventStatus.Stopped => "stopped",
+            EventStatus.OnHold => "on-hold",
+            EventStatus.Preparation => "preparation",
+            _ => "unknown",
+        };
+
+        var codeText = proc.Code?.Text;
+        var codings = proc.Code?.Coding ?? new List<Coding>();
+        string? kind = null;
+        foreach (var coding in codings)
+        {
+            kind = NormalizeProcedure(coding.System, coding.Code, coding.Display);
+            if (!string.IsNullOrEmpty(kind)) break;
+        }
+        if (string.IsNullOrEmpty(kind))
+            kind = NormalizeProcedure(system: null, code: null, displayText: codeText);
+        if (string.IsNullOrEmpty(kind)) yield break;
+
+        var performedAt = proc.Performed switch
+        {
+            FhirDateTime fdt when DateTimeOffset.TryParse(fdt.Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto) => dto,
+            Period { Start: not null } p when DateTimeOffset.TryParse(p.Start, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto) => dto,
+            FhirString fs when DateTimeOffset.TryParse(fs.Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto) => dto,
+            _ => (DateTimeOffset?)null,
+        };
+        if (performedAt is null)
+        {
+            _log.LogDebug("Skipping procedure {Id}: no Performed date.", proc.Id);
+            yield break;
+        }
+
+        yield return new EngineProcedure(kind, performedAt.Value, status);
+    }
+
+    /// <summary>
+    /// Map a FHIR procedure (CPT/HCPCS/SNOMED code or display text) to the
+    /// canonical procedure name the engine uses for surveillance rules.
+    /// Unknown codes return empty (the procedure is dropped, never
+    /// silently misclassified).
+    /// </summary>
+    internal static string NormalizeProcedure(string? system, string? code, string? displayText)
+    {
+        if (!string.IsNullOrEmpty(code))
+        {
+            var key = $"{system}|{code}";
+            if (ProcedureCodeToCanonical.TryGetValue(key, out var byCode)) return byCode;
+            // Some EHRs only put the code without a system; fall back to lookup by code alone.
+            if (ProcedureCodeToCanonical.TryGetValue($"|{code}", out var byBareCode)) return byBareCode;
+        }
+        if (string.IsNullOrWhiteSpace(displayText)) return string.Empty;
+        var lower = displayText.Trim().ToLowerInvariant();
+        if (lower.Contains("mammogra")) return "mammography";
+        if (lower.Contains("colonoscop")) return "colonoscopy";
+        if (lower.Contains("sigmoidoscop")) return "sigmoidoscopy";
+        if (lower.Contains("fit") || lower.Contains("fecal immuno")) return "fit_screening";
+        if (lower.Contains("fobt") || lower.Contains("guaiac")) return "fobt";
+        if (lower.Contains("pap smear") || lower.Contains("cervical cytology")) return "cervical_cytology";
+        if (lower.Contains("dexa") || lower.Contains("dual-energy x-ray") || lower.Contains("bone density")) return "dxa_scan";
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// (system|code) → canonical procedure name. CPT codes use no system
+    /// prefix in some EHRs ("|45378") so the lookup tries both forms.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> ProcedureCodeToCanonical = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        // Mammography (CPT)
+        ["http://www.ama-assn.org/go/cpt|77067"] = "mammography",
+        ["http://www.ama-assn.org/go/cpt|77066"] = "mammography",
+        ["http://www.ama-assn.org/go/cpt|77065"] = "mammography",
+        ["|77067"] = "mammography",
+        ["|77066"] = "mammography",
+        ["|77065"] = "mammography",
+        // Mammography (SNOMED)
+        ["http://snomed.info/sct|71651003"] = "mammography",
+        // Colonoscopy (CPT)
+        ["http://www.ama-assn.org/go/cpt|45378"] = "colonoscopy",
+        ["http://www.ama-assn.org/go/cpt|45380"] = "colonoscopy",
+        ["http://www.ama-assn.org/go/cpt|45385"] = "colonoscopy",
+        ["|45378"] = "colonoscopy",
+        ["|45380"] = "colonoscopy",
+        ["|45385"] = "colonoscopy",
+        // Colonoscopy (SNOMED)
+        ["http://snomed.info/sct|73761001"] = "colonoscopy",
+        // Sigmoidoscopy (CPT)
+        ["http://www.ama-assn.org/go/cpt|45330"] = "sigmoidoscopy",
+        ["|45330"] = "sigmoidoscopy",
+        // FIT (CPT 82270)
+        ["http://www.ama-assn.org/go/cpt|82270"] = "fit_screening",
+        ["|82270"] = "fit_screening",
+        ["http://www.ama-assn.org/go/cpt|82274"] = "fit_screening",
+        ["|82274"] = "fit_screening",
+        // Pap smear / cervical cytology (CPT 88141-88175)
+        ["http://www.ama-assn.org/go/cpt|88142"] = "cervical_cytology",
+        ["|88142"] = "cervical_cytology",
+        ["http://www.ama-assn.org/go/cpt|88175"] = "cervical_cytology",
+        ["|88175"] = "cervical_cytology",
+        // DXA bone density (CPT 77080)
+        ["http://www.ama-assn.org/go/cpt|77080"] = "dxa_scan",
+        ["|77080"] = "dxa_scan",
+    };
+
     /// <summary>
     /// CVX → canonical vaccine name. CVX is the CDC's standard vaccine
     /// coding system; full list at https://www2a.cdc.gov/vaccines/iis/iisstandards/vaccines.asp
@@ -356,4 +475,5 @@ public sealed record EngineInputs(
     IReadOnlyList<Lab> Labs,
     IReadOnlyList<EngineCondition> Conditions,
     IReadOnlyList<EngineAllergy> Allergies,
-    IReadOnlyList<EngineImmunization> Immunizations);
+    IReadOnlyList<EngineImmunization> Immunizations,
+    IReadOnlyList<EngineProcedure> Procedures);

@@ -15,6 +15,7 @@ public sealed class EvaluationContext
     private readonly HashSet<string> _conditionNames;
     private readonly Dictionary<string, Allergy> _allergiesBySubstance;
     private readonly Dictionary<string, Immunization> _latestImmunizationByVaccine;
+    private readonly Dictionary<string, Procedure> _latestProcedureByKind;
 
     public EvaluationContext(
         Patient patient,
@@ -22,7 +23,8 @@ public sealed class EvaluationContext
         IEnumerable<Lab> labs,
         IEnumerable<Condition> conditions,
         IEnumerable<Allergy>? allergies = null,
-        IEnumerable<Immunization>? immunizations = null)
+        IEnumerable<Immunization>? immunizations = null,
+        IEnumerable<Procedure>? procedures = null)
     {
         ArgumentNullException.ThrowIfNull(patient);
         Patient = patient;
@@ -31,6 +33,7 @@ public sealed class EvaluationContext
         Conditions = conditions?.ToArray() ?? Array.Empty<Condition>();
         Allergies = allergies?.ToArray() ?? Array.Empty<Allergy>();
         Immunizations = immunizations?.ToArray() ?? Array.Empty<Immunization>();
+        Procedures = procedures?.ToArray() ?? Array.Empty<Procedure>();
         _labsByName = Labs.GroupBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(l => l.TakenAt ?? DateTimeOffset.MinValue).First(),
                 StringComparer.OrdinalIgnoreCase);
@@ -48,6 +51,11 @@ public sealed class EvaluationContext
             .GroupBy(i => i.Vaccine, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(i => i.AdministeredAt).First(),
                 StringComparer.OrdinalIgnoreCase);
+        _latestProcedureByKind = Procedures
+            .Where(p => string.Equals(p.Status, "completed", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(p => p.Kind, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.PerformedAt).First(),
+                StringComparer.OrdinalIgnoreCase);
     }
 
     public Patient Patient { get; }
@@ -56,6 +64,7 @@ public sealed class EvaluationContext
     public IReadOnlyList<Condition> Conditions { get; }
     public IReadOnlyList<Allergy> Allergies { get; }
     public IReadOnlyList<Immunization> Immunizations { get; }
+    public IReadOnlyList<Procedure> Procedures { get; }
 
     public bool HasMedication(string name) => _medsByName.ContainsKey(name);
     public Medication? Medication(string name) => _medsByName.GetValueOrDefault(name);
@@ -66,6 +75,10 @@ public sealed class EvaluationContext
     /// <summary>Most recent completed dose for the given vaccine, or null if none on file.</summary>
     public Immunization? LatestImmunization(string vaccine) =>
         _latestImmunizationByVaccine.GetValueOrDefault(vaccine);
+
+    /// <summary>Most recent completed procedure of the given kind, or null if none on file.</summary>
+    public Procedure? LatestProcedure(string kind) =>
+        _latestProcedureByKind.GetValueOrDefault(kind);
 
     /// <summary>
     /// Most-recent lab observation by name. Throws <see cref="MissingInputException"/>
