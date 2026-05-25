@@ -22,11 +22,23 @@ public sealed class PanelController : ControllerBase
 {
     private readonly PanelService _panel;
     private readonly PatientSearchService _search;
+    private readonly ResultReviewService _results;
 
-    public PanelController(PanelService panel, PatientSearchService search)
+    public PanelController(PanelService panel, PatientSearchService search, ResultReviewService results)
     {
         _panel = panel;
         _search = search;
+        _results = results;
+    }
+
+    [HttpGet("patient/{id}/results")]
+    public async Task<IActionResult> Results(string id, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        var data = await _results.GetForPatientAsync(id, ct).ConfigureAwait(false);
+        return Content(
+            ResultReviewRenderer.Render(data, NavBar(), ChartTabs(id, activeTab: "results")),
+            MediaTypeNames.Text.Html);
     }
 
     [HttpGet("panel")]
@@ -90,7 +102,8 @@ public sealed class PanelController : ControllerBase
             subline: string.Empty,
             cards: entry.Cards,
             navBar: NavBar(),
-            patient: header);
+            patient: header,
+            chartTabs: ChartTabs(id, activeTab: "brief"));
         return Content(html, MediaTypeNames.Text.Html);
     }
 
@@ -104,6 +117,17 @@ public sealed class PanelController : ControllerBase
             HeadlineFlag: e.Error is not null ? $"Could not load chart — {e.Error}" : headline?.Summary,
             HeadlineSeverity: e.Error is not null ? "warning" : headline?.Indicator,
             AlertCount: e.Cards.Count);
+    }
+
+    /// <summary>Per-patient tabs strip — Visit brief / Results. Future: Orders, Notes.</summary>
+    private static IReadOnlyList<ChartTab> ChartTabs(string patientId, string activeTab)
+    {
+        var escaped = Uri.EscapeDataString(patientId);
+        return new[]
+        {
+            new ChartTab("Visit brief", $"/app/patient/{escaped}", activeTab == "brief"),
+            new ChartTab("Results", $"/app/patient/{escaped}/results", activeTab == "results"),
+        };
     }
 
     private static string NavBar() =>

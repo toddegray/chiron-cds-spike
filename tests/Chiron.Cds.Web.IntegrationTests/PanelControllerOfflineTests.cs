@@ -67,6 +67,20 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
     }
 
     [Fact]
+    public async Task Patient_Route_Renders_Chart_Tabs_With_Brief_Active_On_Success()
+    {
+        using var client = _factory.CreateClient();
+        var resp = await client.GetAsync("/app/patient/p-good");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await resp.Content.ReadAsStringAsync();
+        body.Should().Contain("class=\"chart-tabs\"");
+        body.Should().Contain("href=\"/app/patient/p-good/results\"",
+            because: "the Results tab on the Visit Brief links into the per-patient results route");
+        body.Should().MatchRegex("chart-tab active\"\\s*href=\"/app/patient/p-good\"",
+            because: "the Visit brief tab is active when the brief is the rendered page");
+    }
+
+    [Fact]
     public async Task Patient_Route_404s_When_Service_Returns_Null()
     {
         using var client = _factory.CreateClient();

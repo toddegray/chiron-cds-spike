@@ -59,6 +59,7 @@ builder.Services
     .Bind(builder.Configuration.GetSection(PanelOptions.SectionName));
 builder.Services.AddScoped<PanelService>();
 builder.Services.AddScoped<PatientSearchService>();
+builder.Services.AddScoped<ResultReviewService>();
 
 var app = builder.Build();
 

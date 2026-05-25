@@ -28,7 +28,8 @@ internal static class AlertHtmlRenderer
         IReadOnlyList<CdsCard> cards,
         string? banner = null,
         string? navBar = null,
-        PatientHeader? patient = null)
+        PatientHeader? patient = null,
+        IReadOnlyList<ChartTab>? chartTabs = null)
     {
         var sb = new StringBuilder();
         sb.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">");
@@ -49,6 +50,8 @@ internal static class AlertHtmlRenderer
             RenderDemographics(sb, patient);
         if (!string.IsNullOrWhiteSpace(subline))
             sb.Append("<p class=\"subline\">").Append(WebEncode(subline)).Append("</p>");
+        if (chartTabs is { Count: > 0 })
+            RenderChartTabs(sb, chartTabs);
         if (!string.IsNullOrEmpty(banner))
             sb.Append("<div class=\"banner\">").Append(WebEncode(banner)).Append("</div>");
         sb.Append("</div></header>");
@@ -98,6 +101,19 @@ internal static class AlertHtmlRenderer
 
         sb.Append("</main></body></html>");
         return sb.ToString();
+    }
+
+    private static void RenderChartTabs(StringBuilder sb, IReadOnlyList<ChartTab> tabs)
+    {
+        sb.Append("<nav class=\"chart-tabs\" aria-label=\"Chart sections\">");
+        foreach (var tab in tabs)
+        {
+            sb.Append("<a class=\"chart-tab");
+            if (tab.IsActive) sb.Append(" active");
+            sb.Append("\" href=\"").Append(WebEncode(tab.Href)).Append("\">")
+              .Append(WebEncode(tab.Label)).Append("</a>");
+        }
+        sb.Append("</nav>");
     }
 
     private static void RenderDemographics(StringBuilder sb, PatientHeader patient)
@@ -236,6 +252,13 @@ internal static class AlertHtmlRenderer
         .demographics .demo-item { color: var(--ink-soft); }
         .demographics .demo-sep { color: var(--ink-muted); }
         .subline { color: var(--ink-muted); margin: 0; font-size: .85rem; max-width: 70ch; }
+        /* Per-patient chart-tab strip: Visit brief / Results / (future) Orders / Notes. */
+        .chart-tabs { display: flex; gap: .25rem; margin-top: 1rem; border-bottom: 1px solid var(--rule); }
+        .chart-tab { padding: .55rem .9rem; font-size: .92rem; color: var(--ink-soft);
+                     text-decoration: none; border-radius: 8px 8px 0 0; border-bottom: 2px solid transparent;
+                     transition: color .15s ease, border-color .15s ease; }
+        .chart-tab:hover { color: var(--ink); }
+        .chart-tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--info); }
         .banner { background: var(--warn-soft); border: 1px solid #f0c46a; padding: .6rem .9rem;
                   border-radius: 8px; margin-top: 1rem; font-size: .88rem; color: var(--warn);
                   max-width: 70ch; }
@@ -351,3 +374,9 @@ internal static class AlertHtmlRenderer
 
     private static string WebEncode(string s) => System.Net.WebUtility.HtmlEncode(s);
 }
+
+/// <summary>
+/// One entry on the per-patient chart-tab strip (Visit brief / Results /
+/// future Orders / Notes). The current page sets <see cref="IsActive"/>.
+/// </summary>
+public sealed record ChartTab(string Label, string Href, bool IsActive);
