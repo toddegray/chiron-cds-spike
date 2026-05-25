@@ -70,16 +70,21 @@ public class AlertHtmlRendererTests
     }
 
     [Fact]
-    public void Fingerprint_Renders_Inside_The_Derivation_Footer_Not_As_A_Top_Level_Card_Block()
+    public void Fingerprint_Is_Not_Rendered_In_The_Visit_Brief()
     {
+        // Fingerprints are dev-toolbox: they identify alerts in the
+        // override log and the CDS Hooks JSON (`card.uuid`), but a
+        // clinician never types or reads one. They must not appear in
+        // the rendered visit brief at all.
         var html = AlertHtmlRenderer.Render("Test", "sub", new[] { MakeCard("d") });
-        html.Should().Contain("abc123def456");
-        html.Should().Contain("derivation-fp",
-            because: "the fingerprint lives inside the expandable derivation, not as its own card chip");
+        html.Should().NotContain("abc123def456",
+            because: "the SHA-style alert uuid must not leak into the clinician-facing HTML");
+        html.Should().NotContain("Audit fingerprint",
+            because: "the prior 'Audit fingerprint' footer was also clinician-irrelevant");
         html.Should().NotContain("class=\"fingerprint\"",
-            because: "the old prominent fingerprint block is gone — clinicians don't need it on every card");
-        html.Should().Contain("Audit fingerprint",
-            because: "the in-derivation label calls out its audit-trail purpose");
+            because: "the original prominent fingerprint chip is gone too");
+        html.Should().NotContain("class=\"derivation-fp\"",
+            because: "the in-derivation fingerprint footer is gone");
     }
 
     [Fact]
@@ -125,22 +130,34 @@ public class AlertHtmlRendererTests
             ActiveAllergies: new[] { "Sulfa" },
             ActiveMedicationCount: 3,
             CompletedImmunizationCount: 5,
-            CompletedProcedureCount: 2);
+            CompletedProcedureCount: 2,
+            DateOfBirth: "1990-08-01",
+            Mrn: "12674028");
 
         var html = AlertHtmlRenderer.Render(
-            heading: "Test",
-            subline: "sub",
+            heading: "SMITH, ANNIE",
+            subline: "Chart live from the connected FHIR endpoint",
             cards: Array.Empty<CdsCard>(),
             patient: patient);
 
-        html.Should().Contain("SMITH, ANNIE");
-        html.Should().Contain("35y");
-        html.Should().Contain("Female");
+        html.Should().Contain("<h1>SMITH, ANNIE</h1>",
+            because: "the patient name is the page-header h1, not duplicated in the rail");
+        html.Should().Contain("class=\"demographics\"",
+            because: "the demographics row renders structurally beneath the h1");
+        // HtmlEncode emits the U+00B7 middle dot as the numeric entity, so
+        // assert on what the encoder actually produces ("35y &#183; Female").
+        html.Should().Contain("35y &#183; Female");
+        html.Should().Contain("Born 1990-08-01");
+        html.Should().Contain("MRN 12674028");
         html.Should().Contain("Diabetes");
         html.Should().Contain("Hypertension");
         html.Should().Contain("Sulfa");
         html.Should().Contain("allergy-chips",
             because: "allergies render with the distinctive critical-tone chip class");
+        html.Should().NotContain("class=\"patient-hero\"",
+            because: "the old name+age-sex rail block duplicated the page-header banner and is gone");
+        html.Should().NotContain("class=\"patient-name\"",
+            because: "the name now lives only in the page-header h1");
 
         // Asserting the numeric stats appear in their respective stat-num blocks
         // catches a mutation that swaps value/label or reorders the stats.
@@ -191,18 +208,31 @@ public class AlertHtmlRendererTests
     [Fact]
     public void Patient_Header_Is_Html_Encoded()
     {
+        // The demographics row + condition chips are the only patient-data
+        // surfaces the renderer paints now (the rail no longer carries the
+        // patient.DisplayName). Inject hostile values into the live fields
+        // and assert nothing escapes the encoder.
         var hostile = new PatientHeader(
-            DisplayName: "<script>alert(1)</script>",
-            AgeSex: "x",
+            DisplayName: "ignored-by-renderer",
+            AgeSex: "<script>alert('age')</script>",
             ActiveConditions: new[] { "<b>evil</b>" },
             ActiveAllergies: Array.Empty<string>(),
             ActiveMedicationCount: 0,
             CompletedImmunizationCount: 0,
-            CompletedProcedureCount: 0);
+            CompletedProcedureCount: 0,
+            DateOfBirth: "<img src=x>",
+            Mrn: "<svg onload=alert(1)>");
         var html = AlertHtmlRenderer.Render("Test", "sub", Array.Empty<CdsCard>(), patient: hostile);
         html.Should().NotContain("<script>alert");
-        html.Should().Contain("&lt;script&gt;");
+        html.Should().NotContain("<img src=x>");
+        html.Should().NotContain("<svg onload=alert");
         html.Should().NotContain("<b>evil</b>");
+        html.Should().Contain("&lt;script&gt;",
+            because: "AgeSex is rendered into the demographics row, must be HTML-encoded");
+        html.Should().Contain("&lt;img",
+            because: "DateOfBirth flows into the demographics row");
+        html.Should().Contain("&lt;svg",
+            because: "MRN flows into the demographics row");
     }
 
     [Fact]
@@ -213,5 +243,61 @@ public class AlertHtmlRendererTests
         html.Should().Contain("<strong>bold</strong>");
         html.Should().Contain("<code>code</code>");
         html.Should().Contain("href=\"https://example.test/path\"");
+    }
+
+    [Fact]
+    public void Empty_Subline_Suppresses_The_Subline_Element()
+    {
+        var html = AlertHtmlRenderer.Render(heading: "Test", subline: "", cards: Array.Empty<CdsCard>());
+        html.Should().NotContain("class=\"subline\"",
+            because: "an empty subline must not paint an empty <p class='subline'> element");
+    }
+
+    [Fact]
+    public void No_Patient_Fallback_Renders_When_Patient_Is_Null()
+    {
+        var html = AlertHtmlRenderer.Render("Test", "sub", Array.Empty<CdsCard>(), patient: null);
+        html.Should().Contain("class=\"no-patient\"");
+        html.Should().Contain("No patient context",
+            because: "the fallback message tells viewers the page is rendering without a patient");
+    }
+
+    [Fact]
+    public void Demographics_Row_Includes_Only_The_Fields_That_Are_Set()
+    {
+        // AgeSex-only header — no DateOfBirth, no MRN. Confirms each
+        // conditional in RenderDemographics actually short-circuits when
+        // the source field is empty.
+        var partial = new PatientHeader(
+            DisplayName: "irrelevant",
+            AgeSex: "78y · Male",
+            ActiveConditions: Array.Empty<string>(),
+            ActiveAllergies: Array.Empty<string>(),
+            ActiveMedicationCount: 0,
+            CompletedImmunizationCount: 0,
+            CompletedProcedureCount: 0);
+
+        var html = AlertHtmlRenderer.Render("Test", "sub", Array.Empty<CdsCard>(), patient: partial);
+        html.Should().Contain("78y &#183; Male");
+        // Assert against the rendered demographics fragment, not the whole
+        // document, so CSS-comment substrings ("MRN", "Born") don't fool
+        // the NotContain checks.
+        var fragment = ExtractDemographicsFragment(html);
+        fragment.Should().NotContain("Born",
+            because: "no DateOfBirth on the header → no 'Born …' segment");
+        fragment.Should().NotContain("MRN",
+            because: "no Mrn on the header → no 'MRN …' segment");
+        fragment.Should().NotContain("demo-sep",
+            because: "with only one demographic part, no middle-dot separator should render");
+    }
+
+    private static string ExtractDemographicsFragment(string html)
+    {
+        const string open = "<div class=\"demographics\">";
+        const string close = "</div>";
+        var start = html.IndexOf(open, StringComparison.Ordinal);
+        if (start < 0) return string.Empty;
+        var end = html.IndexOf(close, start + open.Length, StringComparison.Ordinal);
+        return end < 0 ? html[start..] : html[start..(end + close.Length)];
     }
 }

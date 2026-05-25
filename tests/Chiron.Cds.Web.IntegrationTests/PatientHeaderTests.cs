@@ -167,4 +167,29 @@ public class PatientHeaderTests
     {
         PatientHeader.FormatAgeSex(40, sex: null).Should().Be("40y · Other");
     }
+
+    [Fact]
+    public void From_Threads_Date_Of_Birth_And_Mrn_Through_To_The_Record()
+    {
+        // These optional fields drive the chart-banner demographics row.
+        // The factory is the single seam where callers (PanelController)
+        // populate them from FHIR data.
+        var header = PatientHeader.From(
+            Inputs(age: 35, sex: "F"),
+            displayName: "SMITH, ANNIE",
+            dateOfBirth: "1990-08-01",
+            mrn: "12674028");
+        header.DateOfBirth.Should().Be("1990-08-01");
+        header.Mrn.Should().Be("12674028");
+        header.DisplayName.Should().Be("SMITH, ANNIE");
+        header.AgeSex.Should().Be("35y · Female");
+    }
+
+    [Fact]
+    public void From_Defaults_New_Optional_Fields_To_Null()
+    {
+        var header = PatientHeader.From(Inputs(age: 50, sex: "M"), displayName: "P");
+        header.DateOfBirth.Should().BeNull();
+        header.Mrn.Should().BeNull();
+    }
 }

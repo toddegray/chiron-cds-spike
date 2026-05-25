@@ -47,8 +47,10 @@ public class DemoControllerTests : IClassFixture<WebApplicationFactory<Program>>
             because: "the subline shows the real patient id");
         body.Should().Contain("Demo mode",
             because: "the demo banner identifies the page as demo-mode");
-        body.Should().Contain("Audit fingerprint",
-            because: "the fingerprint renders inside the derivation footer as the audit identifier");
+        body.Should().NotContain("Audit fingerprint",
+            because: "the dev-toolbox fingerprint footer is gone — clinicians don't read SHA hashes");
+        body.Should().NotContain("From Chiron Clinical Reasoning",
+            because: "the self-attribution card footer is gone — the page is already Chiron");
     }
 
     [Fact]

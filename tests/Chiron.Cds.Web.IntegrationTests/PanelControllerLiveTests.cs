@@ -67,10 +67,12 @@ public class PanelControllerLiveTests : IClassFixture<WebApplicationFactory<Prog
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         body.Should().Contain("CHA",
             because: "Annie's real chart fires CHA₂DS₂-VASc through the live engine path");
-        body.Should().Contain("Audit fingerprint",
-            because: "the fingerprint renders in the derivation footer as the audit identifier");
-        body.Should().Contain($"Patient {AnniePatientId}",
-            because: "the subline shows the patient id");
+        body.Should().NotContain("Audit fingerprint",
+            because: "the dev-toolbox fingerprint footer is gone — clinicians don't read SHA hashes");
+        body.Should().NotContain("From Chiron Clinical Reasoning",
+            because: "the self-attribution card footer is gone — the page is already Chiron");
+        body.Should().Contain($"MRN {AnniePatientId}",
+            because: "the new chart-banner demographics row shows the MRN alongside age, sex, DOB");
     }
 
     [Fact]

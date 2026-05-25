@@ -15,10 +15,16 @@ internal sealed record PatientHeader(
     IReadOnlyList<string> ActiveAllergies,
     int ActiveMedicationCount,
     int CompletedImmunizationCount,
-    int CompletedProcedureCount)
+    int CompletedProcedureCount,
+    string? DateOfBirth = null,
+    string? Mrn = null)
 {
     /// <summary>Project an <see cref="EngineInputs"/> + display name into a header for the view.</summary>
-    public static PatientHeader From(EngineInputs inputs, string displayName)
+    public static PatientHeader From(
+        EngineInputs inputs,
+        string displayName,
+        string? dateOfBirth = null,
+        string? mrn = null)
     {
         ArgumentNullException.ThrowIfNull(inputs);
         return new PatientHeader(
@@ -38,7 +44,9 @@ internal sealed record PatientHeader(
             CompletedImmunizationCount: inputs.Immunizations
                 .Count(i => string.Equals(i.Status, "completed", StringComparison.OrdinalIgnoreCase)),
             CompletedProcedureCount: inputs.Procedures
-                .Count(p => string.Equals(p.Status, "completed", StringComparison.OrdinalIgnoreCase)));
+                .Count(p => string.Equals(p.Status, "completed", StringComparison.OrdinalIgnoreCase)),
+            DateOfBirth: dateOfBirth,
+            Mrn: mrn);
     }
 
     /// <summary>

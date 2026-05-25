@@ -96,6 +96,8 @@ public class PanelService
                 DisplayName: ChartName(chart, patientId),
                 AppointmentTime: SlotTime(slotIndex),
                 AgeSex: PatientHeader.FormatAgeSex(inputs.Patient.AgeYears, inputs.Patient.Sex),
+                DateOfBirth: chart.Patient.BirthDate,
+                Mrn: patientId,
                 Inputs: inputs,
                 Cards: cards,
                 Error: null);
@@ -103,6 +105,9 @@ public class PanelService
         catch (Exception ex) when (ex is Hl7.Fhir.Rest.FhirOperationException or HttpRequestException or TaskCanceledException)
         {
             _log.LogWarning(ex, "Panel patient {Id} failed to load.", patientId);
+            // No DateOfBirth / Mrn on the error entry: the chart didn't load,
+            // and PanelController.Patient renders the error path with patient: null
+            // so the demographics row wouldn't read them anyway.
             return new PanelEntry(
                 PatientId: patientId,
                 DisplayName: $"Patient {patientId}",
@@ -168,4 +173,6 @@ public sealed record PanelEntry(
     string AgeSex,
     EngineInputs? Inputs,
     IReadOnlyList<CdsCard> Cards,
-    string? Error);
+    string? Error,
+    string? DateOfBirth = null,
+    string? Mrn = null);

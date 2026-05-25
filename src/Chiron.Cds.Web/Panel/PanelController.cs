@@ -80,10 +80,17 @@ public sealed class PanelController : ControllerBase
 
         var header = entry.Inputs is null
             ? null
-            : PatientHeader.From(entry.Inputs, entry.DisplayName);
+            : PatientHeader.From(
+                entry.Inputs,
+                entry.DisplayName,
+                dateOfBirth: entry.DateOfBirth,
+                mrn: entry.Mrn);
         var html = AlertHtmlRenderer.Render(
             heading: entry.DisplayName,
-            subline: $"Patient {id} — chart live from the connected FHIR endpoint.",
+            // Subline is the lightweight provenance note. Demographics
+            // (age, sex, DOB, MRN) render structurally from the patient
+            // header, not in the subline.
+            subline: "Chart live from the connected FHIR endpoint",
             cards: entry.Cards,
             navBar: NavBar(),
             patient: header);

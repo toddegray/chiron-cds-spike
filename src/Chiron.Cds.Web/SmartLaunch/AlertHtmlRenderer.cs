@@ -42,7 +42,13 @@ internal static class AlertHtmlRenderer
 
         sb.Append("<header class=\"page-header\"><div class=\"page-header-inner\">");
         sb.Append("<h1>").Append(WebEncode(heading)).Append("</h1>");
-        sb.Append("<p class=\"subline\">").Append(WebEncode(subline)).Append("</p>");
+        // When patient context is available, render a proper chart-banner
+        // demographics line beneath the name (age · sex · DOB · MRN).
+        // Without it, fall back to the plain text subline the caller supplied.
+        if (patient is not null)
+            RenderDemographics(sb, patient);
+        if (!string.IsNullOrWhiteSpace(subline))
+            sb.Append("<p class=\"subline\">").Append(WebEncode(subline)).Append("</p>");
         if (!string.IsNullOrEmpty(banner))
             sb.Append("<div class=\"banner\">").Append(WebEncode(banner)).Append("</div>");
         sb.Append("</div></header>");
@@ -52,9 +58,9 @@ internal static class AlertHtmlRenderer
         // Left rail — patient header
         sb.Append("<aside class=\"patient-rail\">");
         if (patient is not null)
-            RenderPatientHeader(sb, patient);
+            RenderPatientRail(sb, patient);
         else
-            sb.Append("<div class=\"patient-hero\"><div class=\"patient-name\">No patient context</div></div>");
+            sb.Append("<div class=\"no-patient\">No patient context</div>");
         sb.Append("</aside>");
 
         // Center column — card stack
@@ -94,13 +100,23 @@ internal static class AlertHtmlRenderer
         return sb.ToString();
     }
 
-    private static void RenderPatientHeader(StringBuilder sb, PatientHeader patient)
+    private static void RenderDemographics(StringBuilder sb, PatientHeader patient)
     {
-        sb.Append("<div class=\"patient-hero\">");
-        sb.Append("<div class=\"patient-name\">").Append(WebEncode(patient.DisplayName)).Append("</div>");
-        sb.Append("<div class=\"patient-age-sex\">").Append(WebEncode(patient.AgeSex)).Append("</div>");
+        sb.Append("<div class=\"demographics\">");
+        var parts = new List<string>(3);
+        if (!string.IsNullOrWhiteSpace(patient.AgeSex)) parts.Add(patient.AgeSex);
+        if (!string.IsNullOrWhiteSpace(patient.DateOfBirth)) parts.Add("Born " + patient.DateOfBirth);
+        if (!string.IsNullOrWhiteSpace(patient.Mrn)) parts.Add("MRN " + patient.Mrn);
+        for (var i = 0; i < parts.Count; i++)
+        {
+            if (i > 0) sb.Append("<span class=\"demo-sep\"> · </span>");
+            sb.Append("<span class=\"demo-item\">").Append(WebEncode(parts[i])).Append("</span>");
+        }
         sb.Append("</div>");
+    }
 
+    private static void RenderPatientRail(StringBuilder sb, PatientHeader patient)
+    {
         sb.Append("<div class=\"patient-stats\">");
         AppendStat(sb, "Conditions", patient.ActiveConditions.Count);
         AppendStat(sb, "Medications", patient.ActiveMedicationCount);
@@ -163,15 +179,6 @@ internal static class AlertHtmlRenderer
             sb.Append("<div class=\"derivation-body\">")
               .Append(Markdown.ToHtml(card.Detail, MarkdownPipeline))
               .Append("</div>");
-            // Fingerprint lives at the foot of the expanded derivation, not
-            // as its own card-level block: it's an audit-trail/override-log
-            // detail clinicians don't normally need to see, but keep it
-            // discoverable for anyone who opens the reasoning.
-            if (!string.IsNullOrEmpty(card.Uuid))
-            {
-                sb.Append("<div class=\"derivation-fp\"><span class=\"fp-label\">Audit fingerprint</span> ");
-                sb.Append("<code class=\"fp-code\">").Append(WebEncode(card.Uuid)).Append("</code></div>");
-            }
             sb.Append("</details>");
         }
 
@@ -221,7 +228,14 @@ internal static class AlertHtmlRenderer
                        border-bottom: 1px solid var(--rule); }
         .page-header-inner { max-width: 1280px; margin: 0 auto; padding: 2rem 1.5rem 1.5rem; }
         h1 { font-size: 1.75rem; letter-spacing: -.02em; font-weight: 700; margin: 0 0 .4rem; }
-        .subline { color: var(--ink-soft); margin: 0; font-size: .95rem; max-width: 70ch; }
+        /* Chart-banner demographics: small inline pills under the name,
+           middle-dot separated. Apple-Health-style ink-soft tone. */
+        .demographics { color: var(--ink-soft); font-size: .92rem; margin: 0 0 .4rem;
+                        display: flex; flex-wrap: wrap; align-items: baseline;
+                        column-gap: .35rem; row-gap: .15rem; }
+        .demographics .demo-item { color: var(--ink-soft); }
+        .demographics .demo-sep { color: var(--ink-muted); }
+        .subline { color: var(--ink-muted); margin: 0; font-size: .85rem; max-width: 70ch; }
         .banner { background: var(--warn-soft); border: 1px solid #f0c46a; padding: .6rem .9rem;
                   border-radius: 8px; margin-top: 1rem; font-size: .88rem; color: var(--warn);
                   max-width: 70ch; }
@@ -229,12 +243,11 @@ internal static class AlertHtmlRenderer
         .brief { max-width: 1280px; margin: 1.5rem auto 3rem; padding: 0 1.5rem;
                  display: grid; grid-template-columns: 280px minmax(0, 1fr) 280px; gap: 1.5rem; }
 
-        /* ---------- Patient rail (left) ---------- */
+        /* ---------- Patient rail (left) — chip lists + counts only.
+           Name + age + DOB + MRN render in the page-header banner. ---------- */
         .patient-rail { position: sticky; top: 1rem; align-self: start; }
-        .patient-hero { background: var(--surface); border-radius: 16px; padding: 1.25rem 1.25rem 1rem;
-                        box-shadow: 0 1px 2px rgba(0,0,0,.04); }
-        .patient-name { font-size: 1.1rem; font-weight: 700; letter-spacing: -.01em; }
-        .patient-age-sex { color: var(--ink-muted); font-size: .9rem; margin-top: .15rem; }
+        .no-patient { background: var(--surface); border-radius: 16px; padding: 1.25rem;
+                      box-shadow: 0 1px 2px rgba(0,0,0,.04); color: var(--ink-muted); font-size: .9rem; }
         /* Vertical list of stats — one row per metric so labels never overflow
            the 280px rail. Apple-Health-style: big number left, label right,
            gentle 1px row dividers, last row uncapped. */
@@ -301,11 +314,6 @@ internal static class AlertHtmlRenderer
         .derivation-body a { color: var(--info); text-decoration: none; }
         .derivation-body a:hover { text-decoration: underline; }
         .derivation-body p { margin: .35rem 0; }
-        .derivation-fp { margin-top: .75rem; padding-top: .55rem; border-top: 1px solid var(--rule);
-                         font-size: .72rem; color: var(--ink-muted); }
-        .derivation-fp .fp-label { font-weight: 600; color: var(--ink-soft); }
-        .derivation-fp .fp-code { font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-                                  font-size: .75rem; color: var(--ink-soft); }
 
         .overrides { background: var(--bg); border-radius: 10px; padding: .65rem .9rem;
                      margin: .65rem 0; font-size: .85rem; }
