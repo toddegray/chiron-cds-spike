@@ -46,12 +46,13 @@ public sealed class PanelController : ControllerBase
     [HttpGet("search")]
     public async Task<IActionResult> Search([FromQuery] string? q, CancellationToken ct)
     {
-        var hits = string.IsNullOrWhiteSpace(q)
-            ? Array.Empty<PatientSearchHit>()
+        var result = string.IsNullOrWhiteSpace(q)
+            ? PatientSearchResult.Empty
             : await _search.SearchAsync(q, ct).ConfigureAwait(false);
         var html = PatientSearchRenderer.Render(
             query: q ?? string.Empty,
-            hits: hits,
+            hits: result.Hits,
+            warning: result.Warning,
             navBar: NavBar(),
             drillBaseUrl: "/app/patient");
         return Content(html, MediaTypeNames.Text.Html);

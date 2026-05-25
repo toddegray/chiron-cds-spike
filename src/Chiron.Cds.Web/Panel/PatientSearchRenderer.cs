@@ -15,7 +15,8 @@ internal static class PatientSearchRenderer
         string query,
         IReadOnlyList<PatientSearchHit> hits,
         string navBar,
-        string drillBaseUrl)
+        string drillBaseUrl,
+        string? warning = null)
     {
         ArgumentNullException.ThrowIfNull(hits);
         var sb = new StringBuilder();
@@ -31,17 +32,21 @@ internal static class PatientSearchRenderer
         sb.Append("<p class=\"subline\">Search the connected FHIR endpoint by name. Click a result to open the Visit Brief.</p>");
 
         sb.Append("<form method=\"get\" action=\"/app/search\" class=\"search-form\">");
-        sb.Append("<input type=\"search\" name=\"q\" placeholder=\"Search by name (e.g. Smith)\" autofocus value=\"");
+        sb.Append("<input type=\"search\" name=\"q\" placeholder=\"Last name (e.g. Smith, Jane)\" autofocus minlength=\"2\" value=\"");
         sb.Append(WebEncode(query));
         sb.Append("\" />");
         sb.Append("<button type=\"submit\">Search</button>");
         sb.Append("</form>");
+        if (!string.IsNullOrEmpty(warning))
+        {
+            sb.Append("<div class=\"warn\">").Append(WebEncode(warning)).Append("</div>");
+        }
         sb.Append("</div></header>");
 
         sb.Append("<main class=\"results\">");
         if (string.IsNullOrWhiteSpace(query))
         {
-            sb.Append("<div class=\"hint\">Start typing a last name above. Results come back live from the connected FHIR endpoint.</div>");
+            sb.Append("<div class=\"hint\">Start typing a last name above. Results come back live from the connected FHIR endpoint — try <em>Smith</em>, <em>Jane</em>, or <em>Doe</em>.</div>");
         }
         else if (hits.Count == 0)
         {
@@ -50,7 +55,7 @@ internal static class PatientSearchRenderer
             sb.Append("<div class=\"empty-title\">No patients matched <em>");
             sb.Append(WebEncode(query));
             sb.Append("</em></div>");
-            sb.Append("<div class=\"empty-detail\">Try a different spelling, or use just the family name.</div>");
+            sb.Append("<div class=\"empty-detail\">The connected sandbox returned an empty result. Try a more common family name — <em>Smith</em>, <em>Jane</em>, <em>Doe</em> — or check the spelling.</div>");
             sb.Append("</div>");
         }
         else
@@ -121,6 +126,8 @@ internal static class PatientSearchRenderer
             background: var(--accent); color: #fff; cursor: pointer; transition: background .15s;
         }
         .search-form button:hover { background: #0c5fb5; }
+        .warn { margin-top: .8rem; padding: .6rem .9rem; background: #fff4e3; border: 1px solid #f0c46a;
+                color: #7a4500; border-radius: 8px; font-size: .88rem; max-width: 60ch; }
 
         .results { max-width: 920px; margin: 1.5rem auto 3rem; padding: 0 1.5rem; }
         .hint { color: var(--ink-muted); padding: 2rem 0; text-align: center; }

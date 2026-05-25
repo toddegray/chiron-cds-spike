@@ -126,4 +126,35 @@ public class PatientSearchRendererTests
         html.Should().NotContain(" · ",
             because: "only birth date, no gender — the separator must not lead the meta line");
     }
+
+    [Fact]
+    public void Warning_Renders_Above_Results_When_Present()
+    {
+        var html = PatientSearchRenderer.Render(
+            query: "x",
+            hits: Array.Empty<PatientSearchHit>(),
+            navBar: NavBar,
+            drillBaseUrl: "/app/patient",
+            warning: "Search timed out. Try a more specific query.");
+        html.Should().Contain("<div class=\"warn\">",
+            because: "the warning is rendered in a dedicated banner under the search form");
+        html.Should().Contain("Search timed out");
+    }
+
+    [Fact]
+    public void Warning_Is_Html_Encoded()
+    {
+        var html = PatientSearchRenderer.Render(
+            "x", Array.Empty<PatientSearchHit>(), NavBar, "/app/patient",
+            warning: "<script>alert('xss')</script>");
+        html.Should().NotContain("<script>alert('xss')</script>");
+        html.Should().Contain("&lt;script&gt;");
+    }
+
+    [Fact]
+    public void Warning_Banner_Omitted_When_Null_Or_Empty()
+    {
+        var html = PatientSearchRenderer.Render("q", Array.Empty<PatientSearchHit>(), NavBar, "/app/patient", warning: null);
+        html.Should().NotContain("class=\"warn\"");
+    }
 }

@@ -176,13 +176,12 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
         public StubPatientSearchService(TenantRegistry tenants, ILogger<PatientSearchService> log)
             : base(tenants, log) { }
 
-        public override Task<IReadOnlyList<PatientSearchHit>> SearchAsync(string query, CancellationToken ct)
+        public override Task<PatientSearchResult> SearchAsync(string query, CancellationToken ct)
         {
             LastQuery = query;
-            return Task.FromResult<IReadOnlyList<PatientSearchHit>>(new[]
-            {
-                new PatientSearchHit("s-1", "Stubbed, Patient", "female", "1980-01-01"),
-            });
+            return Task.FromResult(new PatientSearchResult(
+                Hits: new[] { new PatientSearchHit("s-1", "Stubbed, Patient", "female", "1980-01-01") },
+                Warning: null));
         }
     }
 }
