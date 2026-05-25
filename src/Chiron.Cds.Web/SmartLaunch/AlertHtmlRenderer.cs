@@ -102,9 +102,9 @@ internal static class AlertHtmlRenderer
         sb.Append("</div>");
 
         sb.Append("<div class=\"patient-stats\">");
-        AppendStat(sb, "Active conditions", patient.ActiveConditions.Count);
-        AppendStat(sb, "Active meds", patient.ActiveMedicationCount);
-        AppendStat(sb, "Allergies", patient.ActiveAllergies.Count);
+        AppendStat(sb, "Conditions", patient.ActiveConditions.Count);
+        AppendStat(sb, "Medications", patient.ActiveMedicationCount);
+        AppendStat(sb, patient.ActiveAllergies.Count == 1 ? "Allergy" : "Allergies", patient.ActiveAllergies.Count);
         AppendStat(sb, "Immunizations", patient.CompletedImmunizationCount);
         AppendStat(sb, "Procedures", patient.CompletedProcedureCount);
         sb.Append("</div>");
@@ -239,13 +239,18 @@ internal static class AlertHtmlRenderer
                         box-shadow: 0 1px 2px rgba(0,0,0,.04); }
         .patient-name { font-size: 1.1rem; font-weight: 700; letter-spacing: -.01em; }
         .patient-age-sex { color: var(--ink-muted); font-size: .9rem; margin-top: .15rem; }
-        .patient-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
-                         margin-top: .75rem; background: var(--surface); border-radius: 16px;
-                         padding: .75rem .25rem; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
-        .stat { text-align: center; padding: .3rem .15rem; }
-        .stat-num { font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em; color: var(--ink); }
-        .stat-label { font-size: .68rem; color: var(--ink-muted); text-transform: uppercase;
-                      letter-spacing: .03em; margin-top: .15rem; line-height: 1.15; }
+        /* Vertical list of stats — one row per metric so labels never overflow
+           the 280px rail. Apple-Health-style: big number left, label right,
+           gentle 1px row dividers, last row uncapped. */
+        .patient-stats { margin-top: .75rem; background: var(--surface); border-radius: 16px;
+                         padding: .25rem .75rem; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+        .stat { display: flex; align-items: baseline; justify-content: space-between;
+                gap: .75rem; padding: .6rem .25rem; border-bottom: 1px solid var(--rule); }
+        .stat:last-child { border-bottom: 0; }
+        .stat-num { font-size: 1.35rem; font-weight: 700; letter-spacing: -.02em;
+                    color: var(--ink); min-width: 1.5ch; text-align: right; }
+        .stat-label { font-size: .85rem; color: var(--ink-soft); font-weight: 500;
+                      text-align: right; }
         .patient-section { margin-top: 1rem; background: var(--surface); border-radius: 16px;
                            padding: .9rem 1rem; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
         .patient-section-label { font-size: .7rem; text-transform: uppercase; color: var(--ink-muted);

@@ -140,11 +140,38 @@ public class AlertHtmlRendererTests
 
         // Asserting the numeric stats appear in their respective stat-num blocks
         // catches a mutation that swaps value/label or reorders the stats.
-        html.Should().MatchRegex("<div class=\"stat-num\">3</div>\\s*<div class=\"stat-label\">Active meds</div>");
+        html.Should().MatchRegex("<div class=\"stat-num\">3</div>\\s*<div class=\"stat-label\">Medications</div>");
         html.Should().MatchRegex("<div class=\"stat-num\">5</div>\\s*<div class=\"stat-label\">Immunizations</div>");
         html.Should().MatchRegex("<div class=\"stat-num\">2</div>\\s*<div class=\"stat-label\">Procedures</div>");
-        html.Should().MatchRegex("<div class=\"stat-num\">2</div>\\s*<div class=\"stat-label\">Active conditions</div>");
-        html.Should().MatchRegex("<div class=\"stat-num\">1</div>\\s*<div class=\"stat-label\">Allergies</div>");
+        html.Should().MatchRegex("<div class=\"stat-num\">2</div>\\s*<div class=\"stat-label\">Conditions</div>");
+        html.Should().MatchRegex("<div class=\"stat-num\">1</div>\\s*<div class=\"stat-label\">Allergy</div>",
+            because: "single-allergy case uses the singular label");
+    }
+
+    [Theory]
+    [InlineData(0, "Allergies")]
+    [InlineData(2, "Allergies")]
+    [InlineData(7, "Allergies")]
+    public void Allergy_Stat_Label_Is_Plural_When_Count_Is_Not_One(int count, string expectedLabel)
+    {
+        // Pins the false branch of the singular/plural ternary on
+        // AlertHtmlRenderer's allergy stat — without this a mutation
+        // changing "Allergies" to "Allergy" (or flipping the predicate
+        // to `>= 1`) would slip through.
+        var patient = new PatientHeader(
+            DisplayName: "Test",
+            AgeSex: "40y · Female",
+            ActiveConditions: Array.Empty<string>(),
+            ActiveAllergies: Enumerable.Range(0, count).Select(i => $"allergen{i}").ToArray(),
+            ActiveMedicationCount: 0,
+            CompletedImmunizationCount: 0,
+            CompletedProcedureCount: 0);
+
+        var html = AlertHtmlRenderer.Render(
+            heading: "Test", subline: "sub", cards: Array.Empty<CdsCard>(), patient: patient);
+
+        html.Should().MatchRegex(
+            $"<div class=\"stat-num\">{count}</div>\\s*<div class=\"stat-label\">{expectedLabel}</div>");
     }
 
     [Fact]
