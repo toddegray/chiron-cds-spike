@@ -457,7 +457,7 @@ public sealed class FhirToFactMapper
         return lower.Replace(' ', '_').Replace(',', '_');
     }
 
-    private static string NormalizeMedicationName(string? display)
+    internal static string NormalizeMedicationName(string? display)
     {
         if (string.IsNullOrWhiteSpace(display)) return string.Empty;
         var lower = display.Trim().ToLowerInvariant();

@@ -57,9 +57,13 @@ builder.Services.AddScoped<PatientViewService>();
 builder.Services
     .AddOptions<PanelOptions>()
     .Bind(builder.Configuration.GetSection(PanelOptions.SectionName));
+builder.Services
+    .AddOptions<PharmacyOptions>()
+    .Bind(builder.Configuration.GetSection(PharmacyOptions.SectionName));
 builder.Services.AddScoped<PanelService>();
 builder.Services.AddScoped<PatientSearchService>();
 builder.Services.AddScoped<ResultReviewService>();
+builder.Services.AddScoped<OrderEntryService>();
 
 var app = builder.Build();
 
