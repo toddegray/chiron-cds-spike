@@ -5,6 +5,7 @@ using Chiron.Cds.Web.CdsHooks;
 using Chiron.Cds.Web.Configuration;
 using Chiron.Cds.Web.FhirClient;
 using Chiron.Cds.Web.Mappers;
+using Chiron.Cds.Web.Panel;
 using Chiron.Cds.Web.Persistence;
 using Chiron.Cds.Web.SmartLaunch;
 using Chiron.Cds.Web.Tenancy;
@@ -52,6 +53,12 @@ builder.Services.AddSingleton<AlertToCdsCardMapper>();
 builder.Services.AddSingleton<PatientChartFetcher>();
 builder.Services.AddSingleton<DiagnosticReportWriter>();
 builder.Services.AddScoped<PatientViewService>();
+
+builder.Services
+    .AddOptions<PanelOptions>()
+    .Bind(builder.Configuration.GetSection(PanelOptions.SectionName));
+builder.Services.AddScoped<PanelService>();
+builder.Services.AddScoped<PatientSearchService>();
 
 var app = builder.Build();
 

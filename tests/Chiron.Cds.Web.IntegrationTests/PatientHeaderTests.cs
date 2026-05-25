@@ -147,4 +147,24 @@ public class PatientHeaderTests
         var act = () => PatientHeader.From(inputs: null!, displayName: "x");
         act.Should().Throw<ArgumentNullException>();
     }
+
+    [Theory]
+    [InlineData(78, "M", "78y · Male")]
+    [InlineData(35, "F", "35y · Female")]
+    [InlineData(7, "U", "7y · Other")]
+    [InlineData(0, "F", "Female")]
+    [InlineData(0, "", "Other")]
+    [InlineData(-1, "M", "Male")]
+    public void FormatAgeSex_Composes_Age_With_Sex_Label(int age, string sex, string expected)
+    {
+        // Lifted out of duplicated code in PanelService; this is the one
+        // place the format is defined now.
+        PatientHeader.FormatAgeSex(age, sex).Should().Be(expected);
+    }
+
+    [Fact]
+    public void FormatAgeSex_Tolerates_Null_Sex()
+    {
+        PatientHeader.FormatAgeSex(40, sex: null).Should().Be("40y · Other");
+    }
 }

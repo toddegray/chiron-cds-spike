@@ -21,13 +21,9 @@ internal sealed record PatientHeader(
     public static PatientHeader From(EngineInputs inputs, string displayName)
     {
         ArgumentNullException.ThrowIfNull(inputs);
-        var sexLabel = SexLabel(inputs.Patient.Sex);
-        var ageSex = inputs.Patient.AgeYears > 0
-            ? $"{inputs.Patient.AgeYears}y · {sexLabel}"
-            : sexLabel;
         return new PatientHeader(
             DisplayName: displayName,
-            AgeSex: ageSex,
+            AgeSex: FormatAgeSex(inputs.Patient.AgeYears, inputs.Patient.Sex),
             ActiveConditions: inputs.Conditions
                 .Where(c => c.Active)
                 .Select(c => Humanize(c.Name))
@@ -43,6 +39,16 @@ internal sealed record PatientHeader(
                 .Count(i => string.Equals(i.Status, "completed", StringComparison.OrdinalIgnoreCase)),
             CompletedProcedureCount: inputs.Procedures
                 .Count(p => string.Equals(p.Status, "completed", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
+    /// Produce a display string combining age + sex ("78y · Male"). Falls
+    /// back to just the sex label when age is unknown (zero or negative).
+    /// </summary>
+    internal static string FormatAgeSex(int ageYears, string? sex)
+    {
+        var label = SexLabel(sex ?? string.Empty);
+        return ageYears > 0 ? $"{ageYears}y · {label}" : label;
     }
 
     /// <summary>Map an engine sex code (F / M / U / other) to a display label.</summary>

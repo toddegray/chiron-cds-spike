@@ -42,6 +42,22 @@ public class WorklistRendererTests
     }
 
     [Fact]
+    public void Drill_Link_Url_Escapes_PatientId_To_Prevent_Path_Injection()
+    {
+        // PatientId is a URL path segment. WebUtility.HtmlEncode does not
+        // escape '/', '?', or '#' — only Uri.EscapeDataString does. A
+        // regression that reverts the encoder would silently let a
+        // misshapen id inject extra path segments / a query string into
+        // the drill href.
+        var html = WorklistRenderer.Render("Today", "sub",
+            new[] { Row(id: "evil/../other?x=1") },
+            drillBaseUrl: "/app/patient");
+        html.Should().Contain("href=\"/app/patient/evil%2F..%2Fother%3Fx%3D1\"");
+        html.Should().NotContain("href=\"/app/patient/evil/",
+            because: "the slashes in the id must be percent-encoded into the href");
+    }
+
+    [Fact]
     public void Summary_Counts_Patients_Need_Attention_And_Clean()
     {
         var html = WorklistRenderer.Render("Today", "sub", new[]

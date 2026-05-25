@@ -77,8 +77,11 @@ internal static class WorklistRenderer
             "info" => "info",
             _ => "clean",
         };
+        // PatientId is a URL path segment — escape with Uri.EscapeDataString
+        // so a value containing '/' or '?' cannot inject extra path segments
+        // or a query string into the href.
         sb.Append("<a class=\"row ").Append(severityClass).Append("\" href=\"")
-          .Append(WebEncode(drillBaseUrl)).Append('/').Append(WebEncode(row.PatientId)).Append("\">");
+          .Append(WebEncode(drillBaseUrl)).Append('/').Append(Uri.EscapeDataString(row.PatientId)).Append("\">");
 
         sb.Append("<div class=\"row-stripe\"></div>");
 
