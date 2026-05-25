@@ -70,9 +70,9 @@ public sealed class PanelController : ControllerBase
             return Content(
                 AlertHtmlRenderer.Render(
                     heading: entry.DisplayName,
-                    subline: $"Patient {id} — chart could not be loaded: {entry.Error}.",
+                    subline: string.Empty,
                     cards: Array.Empty<CdsHooks.Models.CdsCard>(),
-                    banner: "The connected FHIR endpoint returned an error fetching this chart.",
+                    banner: $"Chart could not be loaded: {entry.Error}",
                     navBar: NavBar(),
                     patient: null),
                 MediaTypeNames.Text.Html);
@@ -87,10 +87,7 @@ public sealed class PanelController : ControllerBase
                 mrn: entry.Mrn);
         var html = AlertHtmlRenderer.Render(
             heading: entry.DisplayName,
-            // Subline is the lightweight provenance note. Demographics
-            // (age, sex, DOB, MRN) render structurally from the patient
-            // header, not in the subline.
-            subline: "Chart live from the connected FHIR endpoint",
+            subline: string.Empty,
             cards: entry.Cards,
             navBar: NavBar(),
             patient: header);

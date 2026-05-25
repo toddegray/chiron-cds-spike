@@ -136,7 +136,9 @@ public class AlertHtmlRendererTests
 
         var html = AlertHtmlRenderer.Render(
             heading: "SMITH, ANNIE",
-            subline: "Chart live from the connected FHIR endpoint",
+            // Empty subline — the patient page lets the demographics row
+            // carry context, not a narrative "this is your chart" line.
+            subline: string.Empty,
             cards: Array.Empty<CdsCard>(),
             patient: patient);
 

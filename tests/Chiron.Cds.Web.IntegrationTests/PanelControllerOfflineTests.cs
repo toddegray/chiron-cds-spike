@@ -58,9 +58,12 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
         var resp = await client.GetAsync("/app/patient/p-bad");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
-        body.Should().Contain("could not be loaded");
-        body.Should().Contain("FHIR 403 Forbidden");
-        body.Should().Contain("connected FHIR endpoint returned an error");
+        body.Should().Contain("Chart could not be loaded",
+            because: "the banner is the single error surface on the patient page");
+        body.Should().Contain("FHIR 403 Forbidden",
+            because: "the engine's error summary is interpolated into the banner");
+        body.Should().Contain("class=\"banner\"",
+            because: "the error renders as a banner, not as a spurious page subline");
     }
 
     [Fact]
