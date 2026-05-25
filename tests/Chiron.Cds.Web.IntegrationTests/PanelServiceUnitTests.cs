@@ -56,21 +56,6 @@ public class PanelServiceUnitTests
         PanelService.ChartName(patient, fallbackId: "fbk").Should().Be("Patient fbk");
     }
 
-    [Theory]
-    [InlineData(0, "8:00 AM")]
-    [InlineData(1, "8:10 AM")]
-    [InlineData(5, "8:50 AM")]
-    [InlineData(6, "9:00 AM")]
-    [InlineData(23, "11:50 AM")]
-    [InlineData(24, "12:00 PM")]
-    [InlineData(25, "12:10 PM")]
-    [InlineData(30, "1:00 PM")]
-    [InlineData(36, "2:00 PM")]
-    public void SlotTime_Produces_Twelve_Hour_Clock_Times(int slotIndex, string expected)
-    {
-        PanelService.SlotTime(slotIndex).Should().Be(expected);
-    }
-
     [Fact]
     public void SummariseError_Returns_Fhir_Status_For_FhirOperationException()
     {

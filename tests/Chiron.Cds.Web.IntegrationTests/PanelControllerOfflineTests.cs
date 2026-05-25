@@ -45,8 +45,8 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
 
         body.Should().Contain("Happy, Patient");
         body.Should().Contain("Broken, Patient");
-        body.Should().Contain("Error — FHIR 403 Forbidden",
-            because: "the row with PanelEntry.Error set renders 'Error — {detail}' into the flag");
+        body.Should().Contain("Could not load chart — FHIR 403 Forbidden",
+            because: "the worklist row for a failed fetch labels the row honestly instead of pretending it loaded");
         body.Should().Contain("href=\"/app/patient/p-good\"");
         body.Should().Contain("href=\"/app/patient/p-bad\"");
     }
@@ -141,31 +141,29 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
         public override Task<IReadOnlyList<PanelEntry>> GetPanelAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<PanelEntry>>(new[]
             {
-                Good("p-good", "Happy, Patient", "8:00 AM"),
-                Bad("p-bad", "Broken, Patient", "8:10 AM"),
+                Good("p-good", "Happy, Patient"),
+                Bad("p-bad", "Broken, Patient"),
             });
 
         public override Task<PanelEntry?> GetPatientAsync(string patientId, CancellationToken ct) =>
             Task.FromResult<PanelEntry?>(patientId switch
             {
-                "p-good" => Good(patientId, "Happy, Patient", "8:00 AM"),
-                "p-bad" => Bad(patientId, "Broken, Patient", "8:10 AM"),
+                "p-good" => Good(patientId, "Happy, Patient"),
+                "p-bad" => Bad(patientId, "Broken, Patient"),
                 _ => null,
             });
 
-        private static PanelEntry Good(string id, string name, string slot) => new(
+        private static PanelEntry Good(string id, string name) => new(
             PatientId: id,
             DisplayName: name,
-            AppointmentTime: slot,
             AgeSex: "45y · Female",
             Inputs: null,
             Cards: Array.Empty<CdsCard>(),
             Error: null);
 
-        private static PanelEntry Bad(string id, string name, string slot) => new(
+        private static PanelEntry Bad(string id, string name) => new(
             PatientId: id,
             DisplayName: name,
-            AppointmentTime: slot,
             AgeSex: "",
             Inputs: null,
             Cards: Array.Empty<CdsCard>(),

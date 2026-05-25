@@ -14,9 +14,9 @@ internal static class WorklistRenderer
         string heading,
         string subline,
         IReadOnlyList<WorklistRow> rows,
+        string drillBaseUrl,
         string? banner = null,
-        string? navBar = null,
-        string drillBaseUrl = "/app/demo")
+        string? navBar = null)
     {
         var sb = new StringBuilder();
         sb.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">");
@@ -80,23 +80,17 @@ internal static class WorklistRenderer
         // PatientId is a URL path segment — escape with Uri.EscapeDataString
         // so a value containing '/' or '?' cannot inject extra path segments
         // or a query string into the href.
+        // No time column: Cerner's open sandbox does not expose Appointment
+        // search (HTTP 400), so any rendered slot times would be fabricated.
+        // The row carries name + demographics + headline alert only.
         sb.Append("<a class=\"row ").Append(severityClass).Append("\" href=\"")
           .Append(WebEncode(drillBaseUrl)).Append('/').Append(Uri.EscapeDataString(row.PatientId)).Append("\">");
 
         sb.Append("<div class=\"row-stripe\"></div>");
 
-        sb.Append("<div class=\"row-time\">");
-        if (!string.IsNullOrEmpty(row.AppointmentTime))
-            sb.Append("<div class=\"time\">").Append(WebEncode(row.AppointmentTime)).Append("</div>");
-        else
-            sb.Append("<div class=\"time placeholder\">—</div>");
-        sb.Append("</div>");
-
         sb.Append("<div class=\"row-patient\">");
         sb.Append("<div class=\"patient-name\">").Append(WebEncode(row.DisplayName)).Append("</div>");
         sb.Append("<div class=\"patient-age-sex\">").Append(WebEncode(row.AgeSex)).Append("</div>");
-        if (!string.IsNullOrEmpty(row.ChiefComplaint))
-            sb.Append("<div class=\"complaint\">").Append(WebEncode(row.ChiefComplaint)).Append("</div>");
         sb.Append("</div>");
 
         sb.Append("<div class=\"row-flag\">");
@@ -164,7 +158,7 @@ internal static class WorklistRenderer
         .empty-glyph { font-size: 3rem; color: var(--ink-muted); line-height: 1; }
         .empty-title { font-weight: 600; margin-top: .8rem; color: var(--ink-soft); }
 
-        .row { display: grid; grid-template-columns: 4px 80px 1fr minmax(180px, 280px) 24px;
+        .row { display: grid; grid-template-columns: 4px 1fr minmax(180px, 280px) 24px;
                gap: 1rem; align-items: center; padding: 1rem 1.25rem;
                background: var(--surface); border-radius: 14px; margin-bottom: .75rem;
                box-shadow: 0 1px 2px rgba(0,0,0,.04); text-decoration: none; color: inherit;
@@ -176,15 +170,10 @@ internal static class WorklistRenderer
         .row.clean .row-stripe { background: var(--ok); }
         .row.clean { opacity: .85; }
 
-        .row-time .time { font-size: 1.05rem; font-weight: 700; letter-spacing: -.01em; }
-        .row-time .time.placeholder { color: var(--ink-muted); font-weight: 400; }
-
         .row-patient { min-width: 0; }
         .patient-name { font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em;
                         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .patient-age-sex { font-size: .85rem; color: var(--ink-muted); margin-top: .1rem; }
-        .complaint { font-size: .88rem; color: var(--ink-soft); margin-top: .25rem;
-                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .row-flag { text-align: right; }
         .flag { font-size: .9rem; color: var(--ink); font-weight: 500;
@@ -200,7 +189,7 @@ internal static class WorklistRenderer
         .row:hover .row-chevron { transform: translateX(2px); color: var(--ink); }
 
         @media (max-width: 720px) {
-            .row { grid-template-columns: 4px 60px 1fr 24px; gap: .75rem; }
+            .row { grid-template-columns: 4px 1fr 24px; gap: .75rem; }
             .row-flag { display: none; }
             .summary-stats { gap: 1.5rem; }
         }

@@ -40,8 +40,8 @@ public class PanelControllerLiveTests : IClassFixture<WebApplicationFactory<Prog
         catch (TaskCanceledException) { return; }
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        body.Should().Contain("Live from the connected FHIR endpoint",
-            because: "the panel page renders its subline");
+        body.Should().Contain("Your panel",
+            because: "the panel page renders its heading");
         body.Should().Contain("SMITH, ANNIE",
             because: "Annie Smith is in the default panel and her chart name comes back from the live Cerner sandbox");
         body.Should().Contain($"href=\"/app/patient/{AnniePatientId}\"",

@@ -35,8 +35,8 @@ public sealed class PanelController : ControllerBase
         var entries = await _panel.GetPanelAsync(ct).ConfigureAwait(false);
         var rows = entries.Select(ToWorklistRow).ToArray();
         var html = WorklistRenderer.Render(
-            heading: "Today's Clinic",
-            subline: "Live from the connected FHIR endpoint. Each row ranked by attention need.",
+            heading: "Your panel",
+            subline: string.Empty,
             rows: rows,
             navBar: NavBar(),
             drillBaseUrl: "/app/patient");
@@ -101,9 +101,7 @@ public sealed class PanelController : ControllerBase
             PatientId: e.PatientId,
             DisplayName: e.DisplayName,
             AgeSex: e.AgeSex,
-            AppointmentTime: e.AppointmentTime,
-            ChiefComplaint: null,
-            HeadlineFlag: e.Error is not null ? $"Error — {e.Error}" : headline?.Summary,
+            HeadlineFlag: e.Error is not null ? $"Could not load chart — {e.Error}" : headline?.Summary,
             HeadlineSeverity: e.Error is not null ? "warning" : headline?.Indicator,
             AlertCount: e.Cards.Count);
     }
@@ -112,7 +110,6 @@ public sealed class PanelController : ControllerBase
         "<span class=\"brand\">Chiron</span>"
         + "<a href=\"/app/panel\">Panel</a>"
         + "<a href=\"/app/search\">Search</a>"
-        + "<a href=\"/app/demo\">Demo</a>"
         + "<a href=\"/cds-services\">CDS Hooks</a>"
         + "<a href=\"/smart/launch?iss=https://fhir-ehr-code.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d\">SMART launch</a>";
 }

@@ -11,10 +11,6 @@ public sealed class PanelOptions
 {
     public const string SectionName = "Chiron:Panel";
 
-    /// <summary>
-    /// Patient ids visible on the panel. Order is preserved; the first id
-    /// renders as the 8:05 slot, the next 8:15, etc., so demo viewers see a
-    /// realistic clinic schedule.
-    /// </summary>
+    /// <summary>Patient ids visible on the panel. Order is preserved in the rendered worklist.</summary>
     public List<string> Patients { get; set; } = new();
 }

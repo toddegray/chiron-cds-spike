@@ -63,9 +63,7 @@ public class PanelService
         if (ids.Length == 0) return Array.Empty<PanelEntry>();
 
         var tenant = OpenTenant();
-        var tasks = ids
-            .Select((id, index) => EvaluatePatientAsync(tenant, id, index, ct))
-            .ToArray();
+        var tasks = ids.Select(id => EvaluatePatientAsync(tenant, id, ct)).ToArray();
         return await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
@@ -74,11 +72,11 @@ public class PanelService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(patientId);
         var tenant = OpenTenant();
-        return await EvaluatePatientAsync(tenant, patientId, slotIndex: 0, ct).ConfigureAwait(false);
+        return await EvaluatePatientAsync(tenant, patientId, ct).ConfigureAwait(false);
     }
 
     private async Task<PanelEntry> EvaluatePatientAsync(
-        TenantConfig tenant, string patientId, int slotIndex, CancellationToken ct)
+        TenantConfig tenant, string patientId, CancellationToken ct)
     {
         try
         {
@@ -94,7 +92,6 @@ public class PanelService
             return new PanelEntry(
                 PatientId: patientId,
                 DisplayName: ChartName(chart, patientId),
-                AppointmentTime: SlotTime(slotIndex),
                 AgeSex: PatientHeader.FormatAgeSex(inputs.Patient.AgeYears, inputs.Patient.Sex),
                 DateOfBirth: chart.Patient.BirthDate,
                 Mrn: patientId,
@@ -111,7 +108,6 @@ public class PanelService
             return new PanelEntry(
                 PatientId: patientId,
                 DisplayName: $"Patient {patientId}",
-                AppointmentTime: SlotTime(slotIndex),
                 AgeSex: string.Empty,
                 Inputs: null,
                 Cards: Array.Empty<CdsCard>(),
@@ -136,21 +132,6 @@ public class PanelService
     private static string ChartName(PatientChart chart, string fallbackId) =>
         ChartName(chart.Patient, fallbackId);
 
-    /// <summary>
-    /// 10-minute slot times starting at 8:00 — enough resolution to fit a
-    /// full morning panel without colliding even at &gt;24 patients. Wraps
-    /// past noon into PM with proper 12-hour-clock semantics.
-    /// </summary>
-    internal static string SlotTime(int slotIndex)
-    {
-        var minutes = 8 * 60 + slotIndex * 10;
-        var hour = minutes / 60;
-        var minute = minutes % 60;
-        var suffix = hour >= 12 ? "PM" : "AM";
-        var displayHour = hour > 12 ? hour - 12 : hour == 0 ? 12 : hour;
-        return $"{displayHour}:{minute:D2} {suffix}";
-    }
-
     /// <summary>Map exceptions to the short string the worklist renders into the row flag.</summary>
     internal static string SummariseError(Exception ex) => ex switch
     {
@@ -169,7 +150,6 @@ public class PanelService
 public sealed record PanelEntry(
     string PatientId,
     string DisplayName,
-    string AppointmentTime,
     string AgeSex,
     EngineInputs? Inputs,
     IReadOnlyList<CdsCard> Cards,
