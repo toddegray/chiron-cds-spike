@@ -156,15 +156,6 @@ internal static class AlertHtmlRenderer
         sb.Append("<h2 class=\"card-title\">").Append(WebEncode(card.Summary)).Append("</h2>");
         sb.Append("</header>");
 
-        if (!string.IsNullOrEmpty(card.Uuid))
-        {
-            sb.Append("<div class=\"fingerprint\">");
-            sb.Append("<span class=\"fp-label\">Fingerprint</span>");
-            sb.Append("<code class=\"fp-code\">").Append(WebEncode(card.Uuid)).Append("</code>");
-            sb.Append("<span class=\"fp-note\">stable across runs · keys the override log</span>");
-            sb.Append("</div>");
-        }
-
         if (!string.IsNullOrEmpty(card.Detail))
         {
             sb.Append("<details class=\"derivation\" open>");
@@ -172,6 +163,15 @@ internal static class AlertHtmlRenderer
             sb.Append("<div class=\"derivation-body\">")
               .Append(Markdown.ToHtml(card.Detail, MarkdownPipeline))
               .Append("</div>");
+            // Fingerprint lives at the foot of the expanded derivation, not
+            // as its own card-level block: it's an audit-trail/override-log
+            // detail clinicians don't normally need to see, but keep it
+            // discoverable for anyone who opens the reasoning.
+            if (!string.IsNullOrEmpty(card.Uuid))
+            {
+                sb.Append("<div class=\"derivation-fp\"><span class=\"fp-label\">Audit fingerprint</span> ");
+                sb.Append("<code class=\"fp-code\">").Append(WebEncode(card.Uuid)).Append("</code></div>");
+            }
             sb.Append("</details>");
         }
 
@@ -188,10 +188,6 @@ internal static class AlertHtmlRenderer
             sb.Append("</ul>");
             sb.Append("</div>");
         }
-
-        sb.Append("<footer class=\"card-source\">From <a href=\"")
-          .Append(WebEncode(card.Source.Url ?? "#")).Append("\">")
-          .Append(WebEncode(card.Source.Label)).Append("</a></footer>");
 
         sb.Append("</div></article>");
     }
@@ -290,15 +286,6 @@ internal static class AlertHtmlRenderer
         .card-title { font-size: 1.05rem; font-weight: 600; margin: 0;
                       letter-spacing: -.01em; line-height: 1.35; }
 
-        .fingerprint { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
-                       margin: .65rem 0; padding: .45rem .65rem; background: var(--bg);
-                       border-radius: 8px; font-size: .78rem; color: var(--ink-soft); }
-        .fp-label { font-weight: 600; color: var(--ink); }
-        .fp-code { font-family: ui-monospace, 'SF Mono', Menlo, monospace; background: var(--surface);
-                   padding: .1rem .4rem; border-radius: 4px; color: var(--ink); font-weight: 600;
-                   font-size: .82rem; }
-        .fp-note { color: var(--ink-muted); }
-
         .derivation { margin: .5rem 0; }
         .derivation summary { cursor: pointer; padding: .35rem 0; font-weight: 600;
                               color: var(--info); user-select: none; font-size: .9rem; }
@@ -314,6 +301,11 @@ internal static class AlertHtmlRenderer
         .derivation-body a { color: var(--info); text-decoration: none; }
         .derivation-body a:hover { text-decoration: underline; }
         .derivation-body p { margin: .35rem 0; }
+        .derivation-fp { margin-top: .75rem; padding-top: .55rem; border-top: 1px solid var(--rule);
+                         font-size: .72rem; color: var(--ink-muted); }
+        .derivation-fp .fp-label { font-weight: 600; color: var(--ink-soft); }
+        .derivation-fp .fp-code { font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+                                  font-size: .75rem; color: var(--ink-soft); }
 
         .overrides { background: var(--bg); border-radius: 10px; padding: .65rem .9rem;
                      margin: .65rem 0; font-size: .85rem; }
@@ -323,11 +315,6 @@ internal static class AlertHtmlRenderer
         .override-code { font-family: ui-monospace, 'SF Mono', Menlo, monospace;
                          font-size: .72rem; color: var(--ink-muted);
                          background: var(--surface); padding: .05rem .35rem; border-radius: 4px; }
-
-        .card-source { font-size: .75rem; color: var(--ink-muted); margin-top: .75rem;
-                       padding-top: .55rem; border-top: 1px solid var(--rule); }
-        .card-source a { color: var(--info); text-decoration: none; }
-        .card-source a:hover { text-decoration: underline; }
 
         /* ---------- Meta rail (right) ---------- */
         .meta-rail { position: sticky; top: 1rem; align-self: start; }

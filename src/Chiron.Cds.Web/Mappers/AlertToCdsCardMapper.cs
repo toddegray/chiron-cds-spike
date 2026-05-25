@@ -48,10 +48,11 @@ public sealed class AlertToCdsCardMapper
 
     private static string RenderMarkdownDetail(Alert alert)
     {
+        // The card header (rendered by the Visit Brief) already shows the
+        // severity badge + title. Rule id + severity + fingerprint duplicate
+        // that for clinicians and read as dev-toolbox noise. CDS Hooks JSON
+        // consumers still receive them structurally via Indicator + Uuid.
         var sb = new StringBuilder();
-        sb.Append("**Rule:** `").Append(alert.RuleId).Append("`  \n");
-        sb.Append("**Severity:** ").Append(alert.Severity).Append("  \n");
-        sb.Append("**Fingerprint:** `").Append(alert.Fingerprint).Append("`\n\n");
 
         sb.AppendLine("### Derivation");
         sb.AppendLine();

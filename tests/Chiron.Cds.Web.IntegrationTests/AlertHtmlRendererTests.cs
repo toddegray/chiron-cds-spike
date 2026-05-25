@@ -70,12 +70,16 @@ public class AlertHtmlRendererTests
     }
 
     [Fact]
-    public void Renders_Fingerprint_Block()
+    public void Fingerprint_Renders_Inside_The_Derivation_Footer_Not_As_A_Top_Level_Card_Block()
     {
         var html = AlertHtmlRenderer.Render("Test", "sub", new[] { MakeCard("d") });
         html.Should().Contain("abc123def456");
-        html.Should().Contain("Fingerprint",
-            because: "the fingerprint label appears in the per-card fingerprint chip");
+        html.Should().Contain("derivation-fp",
+            because: "the fingerprint lives inside the expandable derivation, not as its own card chip");
+        html.Should().NotContain("class=\"fingerprint\"",
+            because: "the old prominent fingerprint block is gone — clinicians don't need it on every card");
+        html.Should().Contain("Audit fingerprint",
+            because: "the in-derivation label calls out its audit-trail purpose");
     }
 
     [Fact]

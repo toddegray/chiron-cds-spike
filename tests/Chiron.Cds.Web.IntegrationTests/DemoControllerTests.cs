@@ -47,8 +47,8 @@ public class DemoControllerTests : IClassFixture<WebApplicationFactory<Program>>
             because: "the subline shows the real patient id");
         body.Should().Contain("Demo mode",
             because: "the demo banner identifies the page as demo-mode");
-        body.Should().Contain("Fingerprint:",
-            because: "the card renders the alert fingerprint prominently");
+        body.Should().Contain("Audit fingerprint",
+            because: "the fingerprint renders inside the derivation footer as the audit identifier");
     }
 
     [Fact]
