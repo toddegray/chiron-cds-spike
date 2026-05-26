@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using Chiron.Cds.Engine;
 using Chiron.Cds.Web.CdsHooks.Models;
 using Chiron.Cds.Web.Configuration;
@@ -39,83 +38,86 @@ public class OrderEntryControllerOfflineTests : IClassFixture<OrderEntryControll
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
         body.Should().Contain("name=\"DrugName\"");
-        body.Should().Contain("chart-tab active",
-            because: "the Orders tab is active on this route");
-        body.Should().Contain("href=\"/app/patient/p1/results\"",
-            because: "Results tab links to the per-patient results route");
-        body.Should().Contain("<option value=\"stub-pharmacy\"",
-            because: "the configured pharmacy renders in the dropdown");
+        body.Should().Contain("chart-tab active");
+        body.Should().Contain("href=\"/app/patient/p1/results\"");
+        body.Should().Contain("<option value=\"stub-pharmacy\"");
+        body.Should().Contain(">Sign order</button>",
+            because: "the single-button UX shows just Sign — no separate Check button");
+        body.Should().NotContain("Check CDS",
+            because: "the old two-button design is gone");
     }
 
     [Fact]
-    public async Task Post_Check_Returns_Inline_Cards_And_Info_Banner()
+    public async Task Post_With_Blocked_Status_Renders_Cards_And_Acknowledge_Boxes()
     {
         using var client = _factory.CreateClient();
-        var resp = await client.PostAsync("/app/patient/p1/orders", new FormUrlEncodedContent(new[]
-        {
-            new KeyValuePair<string, string>("DrugName", "metformin"),
-            new KeyValuePair<string, string>("Strength", "500 mg"),
-            new KeyValuePair<string, string>("Refills", "3"),
-            new KeyValuePair<string, string>("Action", "check"),
-        }));
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await resp.Content.ReadAsStringAsync();
-        body.Should().Contain("class=\"banner info\"");
-        body.Should().Contain("Stubbed warning card",
-            because: "the stub returns a card the renderer must echo into the page");
-    }
-
-    [Fact]
-    public async Task Post_Sign_Without_Session_Returns_Not_Authorised_Banner()
-    {
-        using var client = _factory.CreateClient();
-        var resp = await client.PostAsync("/app/patient/p1/orders", new FormUrlEncodedContent(new[]
-        {
-            new KeyValuePair<string, string>("DrugName", "metformin"),
-            new KeyValuePair<string, string>("Strength", "500 mg"),
-            new KeyValuePair<string, string>("Refills", "0"),
-            new KeyValuePair<string, string>("Action", "sign"),
-        }));
-        var body = await resp.Content.ReadAsStringAsync();
-        body.Should().Contain("class=\"banner warn\"");
-        body.Should().Contain("authenticated SMART session");
-    }
-
-    [Fact]
-    public async Task Post_Sign_With_Blocked_Status_Renders_Cards_And_Warning()
-    {
-        // Patient "p-block" triggers the stub's Blocked branch.
-        using var client = _factory.CreateClient();
-        var resp = await client.PostAsync("/app/patient/p-block/orders?session=test-session", new FormUrlEncodedContent(new[]
+        var resp = await client.PostAsync("/app/patient/p-block/orders", new FormUrlEncodedContent(new[]
         {
             new KeyValuePair<string, string>("DrugName", "warfarin"),
             new KeyValuePair<string, string>("Strength", "5 mg"),
             new KeyValuePair<string, string>("Refills", "0"),
-            new KeyValuePair<string, string>("Action", "sign"),
         }));
         var body = await resp.Content.ReadAsStringAsync();
         body.Should().Contain("class=\"banner warn\"");
-        body.Should().Contain("Critical CDS alerts are not acknowledged");
+        body.Should().Contain("Acknowledge 1 critical alert");
         body.Should().Contain("Stubbed critical card");
+        body.Should().Contain("name=\"Acknowledged\" value=\"fp-critical\"",
+            because: "the blocked path renders a functional ack checkbox");
+        body.Should().Contain("Sign with 1 acknowledgement");
     }
 
     [Fact]
-    public async Task Post_Sign_With_Token_Returns_Success_Page()
+    public async Task Post_With_Acknowledgement_Unblocks_The_Write_Path()
     {
-        // Patient "p-ok" triggers the stub's successful write.
+        // Resubmitting with Acknowledged=fp-critical flips the stub from
+        // Blocked to a successful write.
+        using var client = _factory.CreateClient();
+        var resp = await client.PostAsync("/app/patient/p-block/orders", new FormUrlEncodedContent(new[]
+        {
+            new KeyValuePair<string, string>("DrugName", "warfarin"),
+            new KeyValuePair<string, string>("Strength", "5 mg"),
+            new KeyValuePair<string, string>("Refills", "0"),
+            new KeyValuePair<string, string>("Acknowledged", "fp-critical"),
+        }));
+        var body = await resp.Content.ReadAsStringAsync();
+        body.Should().Contain("class=\"banner ok\"");
+        body.Should().Contain("MR-stub-99");
+    }
+
+    [Fact]
+    public async Task Post_Without_Session_Renders_Preview_Page_With_Json()
+    {
+        // The 'preview' patient takes the no-session branch — CDS passes,
+        // no token, so the renderer shows the would-be FHIR payload.
+        using var client = _factory.CreateClient();
+        var resp = await client.PostAsync("/app/patient/p-preview/orders", new FormUrlEncodedContent(new[]
+        {
+            new KeyValuePair<string, string>("DrugName", "metformin"),
+            new KeyValuePair<string, string>("Strength", "500 mg"),
+            new KeyValuePair<string, string>("Refills", "3"),
+        }));
+        var body = await resp.Content.ReadAsStringAsync();
+        body.Should().Contain("class=\"preview-json\"");
+        body.Should().Contain("Preview only",
+            because: "the no-session path explains why the order wasn't transmitted");
+        body.Should().Contain("MedicationRequest",
+            because: "the rendered JSON contains the FHIR resourceType");
+    }
+
+    [Fact]
+    public async Task Post_With_Token_And_Clear_CDS_Writes_And_Returns_Success_Page()
+    {
         using var client = _factory.CreateClient();
         var resp = await client.PostAsync("/app/patient/p-ok/orders?session=test-session", new FormUrlEncodedContent(new[]
         {
             new KeyValuePair<string, string>("DrugName", "ibuprofen"),
             new KeyValuePair<string, string>("Strength", "400 mg"),
             new KeyValuePair<string, string>("Refills", "0"),
-            new KeyValuePair<string, string>("Action", "sign"),
         }));
         var body = await resp.Content.ReadAsStringAsync();
         body.Should().Contain("class=\"banner ok\"");
         body.Should().Contain("MR-stub-99");
-        body.Should().Contain("href=\"/app/patient/p-ok\"",
-            because: "the success page links back to the Visit Brief");
+        body.Should().Contain("href=\"/app/patient/p-ok\"");
     }
 
     public sealed class Factory : WebApplicationFactory<Program>
@@ -142,7 +144,6 @@ public class OrderEntryControllerOfflineTests : IClassFixture<OrderEntryControll
                     sp.GetRequiredService<IOptions<PharmacyOptions>>(),
                     NullLogger<OrderEntryService>.Instance));
 
-                // For session-token tests, seed a stub session.
                 services.RemoveAll<Chiron.Cds.Web.SmartLaunch.ITokenStore>();
                 services.AddSingleton<Chiron.Cds.Web.SmartLaunch.ITokenStore, StubTokenStore>();
             });
@@ -170,18 +171,20 @@ public class OrderEntryControllerOfflineTests : IClassFixture<OrderEntryControll
             string patientId, OrderDraft draft, string? accessToken,
             IReadOnlySet<string> acknowledgedFingerprints, CancellationToken ct)
         {
-            if (string.IsNullOrEmpty(accessToken))
-                return Task.FromResult(OrderWriteResult.NotAuthorised(
-                    "Signing requires an authenticated SMART session — open /smart/launch first."));
             return Task.FromResult(patientId switch
             {
-                "p-block" => OrderWriteResult.Blocked(
-                    "Critical CDS alerts are not acknowledged: fp-critical",
-                    new[]
-                    {
-                        new CdsCard("Stubbed critical card", "critical",
-                            new CdsCardSource("Chiron"), "do not proceed", "fp-critical", Array.Empty<CdsCoding>()),
-                    }),
+                "p-block" when !acknowledgedFingerprints.Contains("fp-critical") =>
+                    OrderWriteResult.Blocked(
+                        "Acknowledge 1 critical alert to sign.",
+                        new[]
+                        {
+                            new CdsCard("Stubbed critical card", "critical",
+                                new CdsCardSource("Chiron"), "do not proceed", "fp-critical", Array.Empty<CdsCoding>()),
+                        }),
+                "p-block" => OrderWriteResult.Ok("MR-stub-99"),
+                "p-preview" => OrderWriteResult.Preview(
+                    "{\n  \"resourceType\": \"MedicationRequest\",\n  \"intent\": \"order\"\n}",
+                    Array.Empty<CdsCard>()),
                 "p-ok" => OrderWriteResult.Ok("MR-stub-99"),
                 _ => OrderWriteResult.Failed("Unexpected stub branch."),
             });

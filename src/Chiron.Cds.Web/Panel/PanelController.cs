@@ -49,7 +49,8 @@ public sealed class PanelController : ControllerBase
         var view = BuildOrderView(id, entry, OrderDraft.Empty,
             Array.Empty<CdsHooks.Models.CdsCard>(),
             OrderEntryStatus.Empty, message: null, writtenId: null,
-            acknowledged: new HashSet<string>(StringComparer.Ordinal));
+            acknowledged: new HashSet<string>(StringComparer.Ordinal),
+            previewJson: null);
         return Content(
             OrderEntryRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "orders")),
             MediaTypeNames.Text.Html);
@@ -73,43 +74,39 @@ public sealed class PanelController : ControllerBase
         string? writtenId = null;
         IReadOnlyList<CdsHooks.Models.CdsCard> cards;
 
-        if (string.Equals(form.Action, "sign", StringComparison.OrdinalIgnoreCase))
+        // Single-button flow: every submit always runs CDS first, then
+        // attempts to write. The result type tells the renderer whether
+        // to show the would-be FHIR payload (no session), the acknowledge
+        // checkboxes (critical alerts), the success page (wrote), or the
+        // error banner (FHIR write blew up).
+        var accessToken = ReadSessionToken();
+        var write = await _orders.SignAsync(id, draft, accessToken, ack, ct).ConfigureAwait(false);
+        string? previewJson = null;
+        switch (write.Status)
         {
-            var accessToken = ReadSessionToken();
-            var write = await _orders.SignAsync(id, draft, accessToken, ack, ct).ConfigureAwait(false);
-            switch (write.Status)
-            {
-                case OrderWriteStatus.Ok:
-                    status = OrderEntryStatus.SignedOk;
-                    writtenId = write.WrittenId;
-                    cards = Array.Empty<CdsHooks.Models.CdsCard>();
-                    break;
-                case OrderWriteStatus.NotAuthorised:
-                    status = OrderEntryStatus.NotAuthorised;
-                    message = write.Message;
-                    cards = Array.Empty<CdsHooks.Models.CdsCard>();
-                    break;
-                case OrderWriteStatus.Blocked:
-                    status = OrderEntryStatus.Blocked;
-                    message = write.Message;
-                    cards = write.Cards;
-                    break;
-                default:
-                    status = OrderEntryStatus.Failed;
-                    message = write.Message;
-                    cards = Array.Empty<CdsHooks.Models.CdsCard>();
-                    break;
-            }
-        }
-        else
-        {
-            var eval = await _orders.EvaluateAsync(id, draft, ct).ConfigureAwait(false);
-            cards = eval.Cards;
-            status = eval.ChartError is not null ? OrderEntryStatus.Failed : OrderEntryStatus.Checked;
-            message = eval.ChartError is null ? null : "Could not load chart: " + eval.ChartError;
+            case OrderWriteStatus.Ok:
+                status = OrderEntryStatus.SignedOk;
+                writtenId = write.WrittenId;
+                cards = Array.Empty<CdsHooks.Models.CdsCard>();
+                break;
+            case OrderWriteStatus.Blocked:
+                status = OrderEntryStatus.Blocked;
+                message = write.Message;
+                cards = write.Cards;
+                break;
+            case OrderWriteStatus.Preview:
+                status = OrderEntryStatus.Preview;
+                cards = write.Cards;
+                previewJson = write.PreviewJson;
+                break;
+            default:
+                status = OrderEntryStatus.Failed;
+                message = write.Message;
+                cards = Array.Empty<CdsHooks.Models.CdsCard>();
+                break;
         }
 
-        var view = BuildOrderView(id, entry, draft, cards, status, message, writtenId, ack);
+        var view = BuildOrderView(id, entry, draft, cards, status, message, writtenId, ack, previewJson);
         return Content(
             OrderEntryRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "orders")),
             MediaTypeNames.Text.Html);
@@ -130,7 +127,8 @@ public sealed class PanelController : ControllerBase
         OrderEntryStatus status,
         string? message,
         string? writtenId,
-        IReadOnlySet<string> acknowledged) => new(
+        IReadOnlySet<string> acknowledged,
+        string? previewJson) => new(
             PatientId: id,
             PatientDisplayName: entry?.DisplayName ?? $"Patient {id}",
             PatientSubline: BuildPatientSubline(entry),
@@ -140,7 +138,8 @@ public sealed class PanelController : ControllerBase
             AcknowledgedFingerprints: acknowledged,
             Status: status,
             Message: message,
-            WrittenId: writtenId);
+            WrittenId: writtenId,
+            PreviewJson: previewJson);
 
     private static string? BuildPatientSubline(PanelEntry? entry)
     {
@@ -254,9 +253,9 @@ public sealed class PanelController : ControllerBase
 
     /// <summary>
     /// Form-binder shape for the order-entry POST. Mirrors <see cref="OrderDraft"/>
-    /// but uses primitives MVC's default model binder can populate from a
-    /// classic application/x-www-form-urlencoded payload, plus the multi-valued
-    /// Acknowledged array and the Action discriminator (check vs sign).
+    /// using primitives the default MVC model binder can populate from an
+    /// <c>application/x-www-form-urlencoded</c> payload, plus the multi-valued
+    /// <c>Acknowledged</c> array of card fingerprints the user ticked.
     /// </summary>
     public sealed class OrderForm
     {
@@ -273,7 +272,6 @@ public sealed class PanelController : ControllerBase
         public bool SubstitutionAllowed { get; set; } = true;
         public string? NoteToPharmacist { get; set; }
         public string[]? Acknowledged { get; set; }
-        public string? Action { get; set; }
 
         public OrderDraft ToDraft(IReadOnlyList<PharmacyEntry> pharmacies)
         {

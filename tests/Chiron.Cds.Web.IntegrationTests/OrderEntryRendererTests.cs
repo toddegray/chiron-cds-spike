@@ -26,7 +26,8 @@ public class OrderEntryRendererTests
         IReadOnlyList<CdsCard>? cards = null,
         string? message = null,
         string? writtenId = null,
-        IReadOnlySet<string>? acknowledged = null) => new(
+        IReadOnlySet<string>? acknowledged = null,
+        string? previewJson = null) => new(
             PatientId: "p1",
             PatientDisplayName: "SMITH, ANNIE",
             PatientSubline: "35y · Female · MRN p1",
@@ -36,10 +37,11 @@ public class OrderEntryRendererTests
             AcknowledgedFingerprints: acknowledged ?? new HashSet<string>(StringComparer.Ordinal),
             Status: status,
             Message: message,
-            WrittenId: writtenId);
+            WrittenId: writtenId,
+            PreviewJson: previewJson);
 
     [Fact]
-    public void Empty_View_Renders_Form_With_Pharmacy_Dropdown_And_Two_Buttons()
+    public void Empty_View_Renders_Form_With_Pharmacy_Dropdown_And_Single_Sign_Button()
     {
         var html = OrderEntryRenderer.Render(View(), NavBar, Tabs);
         html.Should().Contain("<h1>SMITH, ANNIE</h1>");
@@ -48,53 +50,96 @@ public class OrderEntryRendererTests
         html.Should().Contain("name=\"Refills\"");
         html.Should().Contain("<option value=\"cvs\"");
         html.Should().Contain("CVS Pharmacy — sandbox stub");
-        html.Should().Contain("name=\"Action\" value=\"check\"");
-        html.Should().Contain("name=\"Action\" value=\"sign\"");
-        html.Should().Contain("chart-tab active",
-            because: "the Orders tab is rendered as the active tab on this page");
+        html.Should().Contain(">Sign order</button>",
+            because: "the single-button UX has one Sign action (no separate Check button)");
+        html.Should().NotContain("Check CDS",
+            because: "the old Check button is gone — Sign always runs CDS first");
+        html.Should().Contain("chart-tab active");
     }
 
     [Fact]
-    public void Checked_Status_Renders_Info_Banner_And_Card_Stack()
-    {
-        var card = new CdsCard(
-            Summary: "Drug-drug interaction",
-            Indicator: "warning",
-            Source: new CdsCardSource("Chiron"),
-            Detail: "Watch for hypoglycemia.",
-            Uuid: "fp1",
-            OverrideReasons: Array.Empty<CdsCoding>());
-        var html = OrderEntryRenderer.Render(View(OrderEntryStatus.Checked, cards: new[] { card }), NavBar, Tabs);
-        html.Should().Contain("class=\"banner info\"");
-        html.Should().Contain("Drug-drug interaction");
-        html.Should().Contain("class=\"badge warning\">WARNING");
-        html.Should().Contain("Watch for hypoglycemia");
-    }
-
-    [Fact]
-    public void Blocked_Status_Surfaces_The_Message_And_Cards_Together()
+    public void Blocked_Status_Renders_Warning_Banner_And_Acknowledge_Checkbox()
     {
         var card = new CdsCard("Critical interaction", "critical",
-            new CdsCardSource("Chiron"), "Stop.", "fp2", Array.Empty<CdsCoding>());
+            new CdsCardSource("Chiron"), "Stop.", "fp-critical", Array.Empty<CdsCoding>());
         var html = OrderEntryRenderer.Render(
             View(OrderEntryStatus.Blocked,
                 cards: new[] { card },
-                message: "Critical CDS alerts are not acknowledged: fp2"),
+                message: "Acknowledge 1 critical alert to sign."),
             NavBar, Tabs);
         html.Should().Contain("class=\"banner warn\"");
-        html.Should().Contain("Critical CDS alerts are not acknowledged: fp2");
+        html.Should().Contain("Acknowledge 1 critical alert to sign.");
         html.Should().Contain("class=\"badge critical\">CRITICAL");
+        html.Should().Contain("name=\"Acknowledged\" value=\"fp-critical\"",
+            because: "the critical card carries a real, functional acknowledge checkbox");
+        html.Should().Contain("form=\"order-form\"",
+            because: "the checkbox lives outside the form element but posts under the form via the form attribute");
+        html.Should().Contain(">Sign with 1 acknowledgement</button>",
+            because: "the button label reflects how many unacked criticals remain");
     }
 
     [Fact]
-    public void Not_Authorised_Status_Surfaces_The_Smart_Session_Hint()
+    public void Two_Unacked_Critical_Cards_Render_Pluralised_Button_Label()
+    {
+        var c1 = new CdsCard("Critical A", "critical",
+            new CdsCardSource("Chiron"), "Stop A.", "fp-a", Array.Empty<CdsCoding>());
+        var c2 = new CdsCard("Critical B", "critical",
+            new CdsCardSource("Chiron"), "Stop B.", "fp-b", Array.Empty<CdsCoding>());
+        var html = OrderEntryRenderer.Render(
+            View(OrderEntryStatus.Blocked, cards: new[] { c1, c2 }),
+            NavBar, Tabs);
+        html.Should().Contain(">Sign with 2 acknowledgements</button>",
+            because: "two unacked criticals render the plural label, exercising the != 1 branch");
+    }
+
+    [Fact]
+    public void Already_Acknowledged_Critical_Card_Renders_Checked_Checkbox_And_Plain_Sign_Button()
+    {
+        var card = new CdsCard("Critical interaction", "critical",
+            new CdsCardSource("Chiron"), "Stop.", "fp-critical", Array.Empty<CdsCoding>());
+        var ack = new HashSet<string>(StringComparer.Ordinal) { "fp-critical" };
+        var html = OrderEntryRenderer.Render(
+            View(OrderEntryStatus.Blocked, cards: new[] { card }, acknowledged: ack),
+            NavBar, Tabs);
+        html.Should().Contain("name=\"Acknowledged\" value=\"fp-critical\" checked",
+            because: "the box stays ticked when the fingerprint is already acked so the user doesn't re-tick across resubmits");
+        html.Should().Contain(">Sign order</button>",
+            because: "with the critical alert acked, the button collapses back to plain 'Sign order'");
+        html.Should().NotContain("<input type=\"hidden\" name=\"Acknowledged\" value=\"fp-critical\"",
+            because: "the checkbox is the single source of truth — a hidden duplicate would let unchecking re-ack via the hidden post");
+    }
+
+    [Fact]
+    public void Hidden_Acknowledgement_Survives_Only_When_Card_Is_Not_Currently_Displayed()
+    {
+        // Critical card 'fp-shown' is on screen; ack 'fp-gone' has no
+        // matching card. The renderer should hidden-input only the latter.
+        var card = new CdsCard("Shown", "critical", new CdsCardSource("Chiron"), null, "fp-shown",
+            Array.Empty<CdsCoding>());
+        var ack = new HashSet<string>(StringComparer.Ordinal) { "fp-shown", "fp-gone" };
+        var html = OrderEntryRenderer.Render(
+            View(OrderEntryStatus.Blocked, cards: new[] { card }, acknowledged: ack), NavBar, Tabs);
+        html.Should().Contain("<input type=\"hidden\" name=\"Acknowledged\" value=\"fp-gone\"");
+        html.Should().NotContain("<input type=\"hidden\" name=\"Acknowledged\" value=\"fp-shown\"");
+    }
+
+    [Fact]
+    public void Preview_Status_Renders_Json_Block_And_No_Sign_Button()
     {
         var html = OrderEntryRenderer.Render(
-            View(OrderEntryStatus.NotAuthorised,
-                message: "Signing requires an authenticated SMART session — open /smart/launch first."),
+            View(OrderEntryStatus.Preview,
+                cards: Array.Empty<CdsCard>(),
+                previewJson: "{\n  \"resourceType\": \"MedicationRequest\"\n}"),
             NavBar, Tabs);
-        html.Should().Contain("class=\"banner warn\"");
-        html.Should().Contain("Signing requires an authenticated SMART session");
+        html.Should().Contain("class=\"banner info\"");
+        html.Should().Contain("Preview only");
+        html.Should().Contain("not transmitted");
+        html.Should().Contain("class=\"preview-json\"");
+        html.Should().Contain("&quot;resourceType&quot;: &quot;MedicationRequest&quot;",
+            because: "the FHIR JSON is HTML-encoded into the preview block, never injected as raw HTML");
+        html.Should().NotContain(">Sign order</button>",
+            because: "the form is suppressed on the preview page — the user clicks 'Discard and start over' if they want to edit");
+        html.Should().Contain("Discard and start over");
     }
 
     [Fact]
@@ -105,8 +150,7 @@ public class OrderEntryRendererTests
             NavBar, Tabs);
         html.Should().Contain("class=\"banner err\"");
         html.Should().Contain("FHIR 403 Forbidden");
-        html.Should().Contain("name=\"DrugName\"",
-            because: "the form stays available so the doctor can adjust and resubmit");
+        html.Should().Contain("name=\"DrugName\"");
     }
 
     [Fact]
@@ -117,10 +161,8 @@ public class OrderEntryRendererTests
             NavBar, Tabs);
         html.Should().Contain("class=\"banner ok\"");
         html.Should().Contain("<code>MR-12345</code>");
-        html.Should().Contain("href=\"/app/patient/p1\"",
-            because: "the success page links back to the Visit Brief");
-        html.Should().NotContain("name=\"DrugName\"",
-            because: "the form is suppressed after a successful sign so the user moves on");
+        html.Should().Contain("href=\"/app/patient/p1\"");
+        html.Should().NotContain("name=\"DrugName\"");
     }
 
     [Fact]
@@ -132,25 +174,15 @@ public class OrderEntryRendererTests
             Refills: 5, AsNeeded: false, PrnReason: null,
             PharmacyId: "rite-aid", PharmacyDisplay: "Rite Aid — sandbox stub",
             SubstitutionAllowed: false, NoteToPharmacist: "patient is allergic to vitamin K");
-        var html = OrderEntryRenderer.Render(View(OrderEntryStatus.Checked, draft: draft), NavBar, Tabs);
+        var html = OrderEntryRenderer.Render(View(OrderEntryStatus.Blocked, draft: draft), NavBar, Tabs);
         html.Should().Contain("value=\"warfarin\"");
         html.Should().Contain("value=\"5 mg\"");
         html.Should().Contain("value=\"30 tablets\"");
-        html.Should().Contain("value=\"5\"",
-            because: "the Refills numeric input must echo the prior value");
+        html.Should().Contain("value=\"5\"");
         html.Should().Contain("<option value=\"rite-aid\" selected");
         html.Should().Contain("patient is allergic to vitamin K");
         html.Should().Contain("<option value=\"Oral\" selected");
         html.Should().Contain("<option value=\"Once daily\" selected");
-    }
-
-    [Fact]
-    public void Acknowledged_Fingerprints_Render_As_Hidden_Inputs()
-    {
-        var ack = new HashSet<string>(StringComparer.Ordinal) { "fp-a", "fp-b" };
-        var html = OrderEntryRenderer.Render(View(OrderEntryStatus.Blocked, acknowledged: ack), NavBar, Tabs);
-        html.Should().Contain("<input type=\"hidden\" name=\"Acknowledged\" value=\"fp-a\" />");
-        html.Should().Contain("<input type=\"hidden\" name=\"Acknowledged\" value=\"fp-b\" />");
     }
 
     [Fact]
@@ -160,7 +192,7 @@ public class OrderEntryRendererTests
         var card = new CdsCard("<svg onload=alert(1)>", "critical",
             new CdsCardSource("Chiron"), "<script>", "fp", Array.Empty<CdsCoding>());
         var html = OrderEntryRenderer.Render(
-            View(OrderEntryStatus.Checked, draft: draft, cards: new[] { card }), NavBar, Tabs);
+            View(OrderEntryStatus.Blocked, draft: draft, cards: new[] { card }), NavBar, Tabs);
         html.Should().NotContain("<script>alert");
         html.Should().NotContain("<svg onload=alert");
         html.Should().NotContain("<img src=x>");

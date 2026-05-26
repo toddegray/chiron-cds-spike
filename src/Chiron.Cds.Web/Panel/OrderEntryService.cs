@@ -95,10 +95,10 @@ public class OrderEntryService
         ArgumentException.ThrowIfNullOrWhiteSpace(patientId);
         ArgumentNullException.ThrowIfNull(draft);
 
-        if (string.IsNullOrEmpty(accessToken))
-            return OrderWriteResult.NotAuthorised(
-                "Signing requires an authenticated SMART session — open /smart/launch first.");
-
+        // Always run CDS first so the user sees what the engine fired.
+        // Auth state and ack gating are checked only after the cards are
+        // available — bailing earlier would leave the doctor wondering
+        // whether CDS even ran.
         var evaluation = await EvaluateAsync(patientId, draft, ct).ConfigureAwait(false);
         if (evaluation.ChartError is not null)
             return OrderWriteResult.Failed("Could not load chart: " + evaluation.ChartError);
@@ -111,10 +111,19 @@ public class OrderEntryService
         var unack = critical.Where(fp => !acknowledgedFingerprints.Contains(fp!)).ToArray();
         if (unack.Length > 0)
             return OrderWriteResult.Blocked(
-                "Critical CDS alerts are not acknowledged: " + string.Join(", ", unack),
+                $"Acknowledge {unack.Length} critical alert{(unack.Length == 1 ? "" : "s")} to sign.",
                 evaluation.Cards);
 
         var resource = BuildMedicationRequest(patientId, draft);
+
+        if (string.IsNullOrEmpty(accessToken))
+        {
+            // No SMART session — render the would-be FHIR payload as a
+            // preview instead of a dead-end "go authenticate" banner. The
+            // doctor sees end-to-end what Chiron would have sent.
+            return OrderWriteResult.Preview(SerialisePreview(resource), evaluation.Cards);
+        }
+
         try
         {
             var id = await WriteAsync(resource, accessToken, ct).ConfigureAwait(false);
@@ -137,6 +146,20 @@ public class OrderEntryService
             Frequency: string.IsNullOrWhiteSpace(draft.Frequency) ? null : draft.Frequency,
             Route: string.IsNullOrWhiteSpace(draft.Route) ? null : draft.Route,
             Active: true);
+    }
+
+    /// <summary>
+    /// Serialise a <see cref="MedicationRequest"/> to indented FHIR JSON for
+    /// the no-session preview pane. Exposed as internal-static so tests can
+    /// pin the contract (resourceType, intent, indentation) against the real
+    /// Firely converter without having to drive a full request lifecycle.
+    /// </summary>
+    internal static string SerialisePreview(MedicationRequest resource)
+    {
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+        Hl7.Fhir.Serialization.FhirJsonConverterOptionsExtensions.ForFhir(
+            jsonOptions, Hl7.Fhir.Model.ModelInfo.ModelInspector);
+        return System.Text.Json.JsonSerializer.Serialize(resource, jsonOptions);
     }
 
     /// <summary>Build the FHIR <see cref="MedicationRequest"/> resource we POST to the EHR.</summary>
@@ -291,22 +314,23 @@ public sealed record OrderWriteResult(
     OrderWriteStatus Status,
     string? WrittenId,
     string? Message,
-    IReadOnlyList<CdsCard> Cards)
+    IReadOnlyList<CdsCard> Cards,
+    string? PreviewJson)
 {
     public static OrderWriteResult Ok(string id) =>
-        new(OrderWriteStatus.Ok, id, null, Array.Empty<CdsCard>());
-    public static OrderWriteResult NotAuthorised(string message) =>
-        new(OrderWriteStatus.NotAuthorised, null, message, Array.Empty<CdsCard>());
+        new(OrderWriteStatus.Ok, id, null, Array.Empty<CdsCard>(), null);
     public static OrderWriteResult Blocked(string message, IReadOnlyList<CdsCard> cards) =>
-        new(OrderWriteStatus.Blocked, null, message, cards);
+        new(OrderWriteStatus.Blocked, null, message, cards, null);
+    public static OrderWriteResult Preview(string previewJson, IReadOnlyList<CdsCard> cards) =>
+        new(OrderWriteStatus.Preview, null, null, cards, previewJson);
     public static OrderWriteResult Failed(string message) =>
-        new(OrderWriteStatus.Failed, null, message, Array.Empty<CdsCard>());
+        new(OrderWriteStatus.Failed, null, message, Array.Empty<CdsCard>(), null);
 }
 
 public enum OrderWriteStatus
 {
     Ok,
-    NotAuthorised,
     Blocked,
+    Preview,
     Failed,
 }

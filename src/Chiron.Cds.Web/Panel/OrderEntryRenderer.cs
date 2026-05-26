@@ -29,18 +29,37 @@ internal static class OrderEntryRenderer
         RenderHeader(sb, view, chartTabs);
 
         sb.Append("<main class=\"order-main\">");
-        if (view.Status is OrderEntryStatus.SignedOk)
+        switch (view.Status)
         {
-            RenderSignedBanner(sb, view.WrittenId, view.PatientId);
-        }
-        else
-        {
-            RenderResultBanner(sb, view);
-            RenderForm(sb, view);
-            RenderCards(sb, view.Cards);
+            case OrderEntryStatus.SignedOk:
+                RenderSignedBanner(sb, view.WrittenId, view.PatientId);
+                break;
+            case OrderEntryStatus.Preview:
+                RenderPreview(sb, view);
+                break;
+            default:
+                RenderResultBanner(sb, view);
+                RenderForm(sb, view);
+                RenderCards(sb, view);
+                break;
         }
         sb.Append("</main></body></html>");
         return sb.ToString();
+    }
+
+    private static void RenderPreview(StringBuilder sb, OrderEntryView view)
+    {
+        sb.Append("<div class=\"banner info\">");
+        sb.Append("CDS cleared. <strong>Preview only</strong> — no SMART session active, so this draft was not transmitted to the EHR. ");
+        sb.Append("Below is the exact <code>MedicationRequest</code> Chiron would <code>POST</code> to the FHIR endpoint once authenticated.");
+        sb.Append("</div>");
+        RenderCards(sb, view);
+        sb.Append("<section class=\"preview-pane\"><h2>Pending FHIR payload</h2>");
+        sb.Append("<pre class=\"preview-json\">").Append(WebEncode(view.PreviewJson ?? string.Empty)).Append("</pre>");
+        sb.Append("<form method=\"get\" action=\"/app/patient/").Append(Uri.EscapeDataString(view.PatientId)).Append("/orders\">");
+        sb.Append("<button type=\"submit\" class=\"btn secondary\">Discard and start over</button>");
+        sb.Append("</form>");
+        sb.Append("</section>");
     }
 
     private static void RenderHeader(StringBuilder sb, OrderEntryView view, IReadOnlyList<ChartTab> tabs)
@@ -76,15 +95,9 @@ internal static class OrderEntryRenderer
         {
             case OrderEntryStatus.Empty:
                 return;
-            case OrderEntryStatus.Checked:
-                sb.Append("<div class=\"banner info\">Draft checked. Acknowledge any critical alerts below, then sign.</div>");
-                return;
             case OrderEntryStatus.Blocked:
-                sb.Append("<div class=\"banner warn\">Critical CDS alerts must be acknowledged before signing. ")
-                  .Append(WebEncode(view.Message ?? string.Empty)).Append("</div>");
-                return;
-            case OrderEntryStatus.NotAuthorised:
-                sb.Append("<div class=\"banner warn\">").Append(WebEncode(view.Message ?? "")).Append("</div>");
+                sb.Append("<div class=\"banner warn\">").Append(WebEncode(view.Message ?? string.Empty));
+                sb.Append(" Tick each critical card's <strong>Acknowledge</strong> box below, then Sign again.</div>");
                 return;
             case OrderEntryStatus.Failed:
                 sb.Append("<div class=\"banner err\">").Append(WebEncode(view.Message ?? "")).Append("</div>");
@@ -95,7 +108,8 @@ internal static class OrderEntryRenderer
     private static void RenderForm(StringBuilder sb, OrderEntryView view)
     {
         var d = view.Draft;
-        sb.Append("<form method=\"post\" action=\"/app/patient/")
+        var unacked = CountUnacknowledgedCritical(view);
+        sb.Append("<form id=\"order-form\" method=\"post\" action=\"/app/patient/")
           .Append(Uri.EscapeDataString(view.PatientId)).Append("/orders\" class=\"order-form\">");
 
         sb.Append("<section class=\"form-section\"><h2>Medication</h2>");
@@ -127,28 +141,45 @@ internal static class OrderEntryRenderer
         TextAreaField(sb, "note", "NoteToPharmacist", "Note to pharmacist", d.NoteToPharmacist);
         sb.Append("</section>");
 
-        if (view.AcknowledgedFingerprints.Count > 0)
+        // Hidden inputs survive only acks whose card is no longer in the
+        // current evaluation — for cards still on screen the checkbox is
+        // the single source of truth, so unchecking actually un-ack's.
+        var displayedFingerprints = view.Cards
+            .Select(c => c.Uuid)
+            .Where(uuid => !string.IsNullOrEmpty(uuid))
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var fp in view.AcknowledgedFingerprints)
         {
-            foreach (var fp in view.AcknowledgedFingerprints)
-                sb.Append("<input type=\"hidden\" name=\"Acknowledged\" value=\"").Append(WebEncode(fp)).Append("\" />");
+            if (displayedFingerprints.Contains(fp)) continue;
+            sb.Append("<input type=\"hidden\" name=\"Acknowledged\" value=\"").Append(WebEncode(fp)).Append("\" />");
         }
 
         sb.Append("<div class=\"form-actions\">");
-        sb.Append("<button type=\"submit\" name=\"Action\" value=\"check\" class=\"btn secondary\">Check CDS</button>");
-        sb.Append("<button type=\"submit\" name=\"Action\" value=\"sign\" class=\"btn primary\">Sign and queue</button>");
+        sb.Append("<button type=\"submit\" class=\"btn primary\">");
+        sb.Append(unacked > 0
+            ? $"Sign with {unacked} acknowledgement{(unacked == 1 ? "" : "s")}"
+            : "Sign order");
+        sb.Append("</button>");
         sb.Append("</div></form>");
     }
 
-    private static void RenderCards(StringBuilder sb, IReadOnlyList<CdsCard> cards)
+    private static int CountUnacknowledgedCritical(OrderEntryView view) =>
+        view.Cards
+            .Where(c => string.Equals(c.Indicator, "critical", StringComparison.OrdinalIgnoreCase))
+            .Select(c => c.Uuid)
+            .Count(uuid => !string.IsNullOrEmpty(uuid)
+                           && !view.AcknowledgedFingerprints.Contains(uuid));
+
+    private static void RenderCards(StringBuilder sb, OrderEntryView view)
     {
-        if (cards.Count == 0) return;
+        if (view.Cards.Count == 0) return;
         sb.Append("<section class=\"cards-panel\">");
         sb.Append("<h2>Inline CDS</h2>");
-        foreach (var card in cards) RenderCard(sb, card);
+        foreach (var card in view.Cards) RenderCard(sb, card, view.AcknowledgedFingerprints);
         sb.Append("</section>");
     }
 
-    private static void RenderCard(StringBuilder sb, CdsCard card)
+    private static void RenderCard(StringBuilder sb, CdsCard card, IReadOnlySet<string> acknowledged)
     {
         var severity = card.Indicator switch
         {
@@ -156,7 +187,10 @@ internal static class OrderEntryRenderer
             "warning" => "warning",
             _ => "info",
         };
-        sb.Append("<article class=\"alert ").Append(severity).Append("\">");
+        var isAcked = !string.IsNullOrEmpty(card.Uuid) && acknowledged.Contains(card.Uuid);
+        sb.Append("<article class=\"alert ").Append(severity);
+        if (isAcked) sb.Append(" acknowledged");
+        sb.Append("\">");
         sb.Append("<header class=\"alert-head\">");
         sb.Append("<span class=\"badge ").Append(severity).Append("\">")
           .Append(card.Indicator.ToUpperInvariant()).Append("</span>");
@@ -166,12 +200,16 @@ internal static class OrderEntryRenderer
             sb.Append("<div class=\"alert-detail\">")
               .Append(Markdown.ToHtml(card.Detail, MarkdownPipeline))
               .Append("</div>");
-        if (severity == "critical")
+        if (severity == "critical" && !string.IsNullOrEmpty(card.Uuid))
         {
-            // Each critical card carries an acknowledgement checkbox the
-            // server checks before unlocking the Sign action.
-            sb.Append("<label class=\"ack\"><input type=\"checkbox\" form=\"\" disabled />");
-            sb.Append("Acknowledged on next submit (re-check this card after submitting)</label>");
+            // The `form="order-form"` attribute lets a checkbox outside the
+            // <form> still POST under the form's Acknowledged[] array. Pre-
+            // checked when the fingerprint is already in the ack set so the
+            // user doesn't have to re-tick across resubmits.
+            sb.Append("<label class=\"ack\"><input type=\"checkbox\" form=\"order-form\" name=\"Acknowledged\" value=\"")
+              .Append(WebEncode(card.Uuid)).Append("\"");
+            if (isAcked) sb.Append(" checked");
+            sb.Append(" /> Acknowledge this critical alert</label>");
         }
         sb.Append("</article>");
     }
@@ -308,6 +346,7 @@ internal static class OrderEntryRenderer
                  box-shadow:0 1px 2px rgba(0,0,0,.04); border-left:4px solid var(--info); }
         .alert.warning { border-left-color:var(--warn); }
         .alert.critical { border-left-color:var(--crit); }
+        .alert.acknowledged { background:var(--ok-soft); border-left-color:var(--ok); }
         .alert-head { display:flex; align-items:baseline; gap:.5rem; }
         .alert-head h3 { font-size:.95rem; margin:0; font-weight:600; }
         .badge { font-size:.62rem; font-weight:700; padding:.15rem .5rem; border-radius:6px; letter-spacing:.05em; }
@@ -331,6 +370,14 @@ internal static class OrderEntryRenderer
         .link-back { display:inline-block; margin-top:.5rem; color:var(--info); text-decoration:none; }
         .link-back:hover { text-decoration:underline; }
 
+        .preview-pane { grid-column: 1 / -1; background:var(--surface); border-radius:14px;
+                        padding:1rem 1.25rem; box-shadow:0 1px 2px rgba(0,0,0,.04); margin-top:1rem; }
+        .preview-pane h2 { font-size:.78rem; text-transform:uppercase; letter-spacing:.06em;
+                           color:var(--ink-muted); font-weight:600; margin:0 0 .5rem; }
+        .preview-json { background:#0e1116; color:#c9d1d9; padding:1rem; border-radius:10px;
+                        font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:.78rem;
+                        line-height:1.45; overflow-x:auto; white-space:pre; }
+
         @media (max-width: 880px) { .order-main { grid-template-columns: 1fr; } }
     </style>";
 
@@ -348,14 +395,14 @@ public sealed record OrderEntryView(
     IReadOnlySet<string> AcknowledgedFingerprints,
     OrderEntryStatus Status,
     string? Message,
-    string? WrittenId);
+    string? WrittenId,
+    string? PreviewJson);
 
 public enum OrderEntryStatus
 {
     Empty,
-    Checked,
     Blocked,
-    NotAuthorised,
+    Preview,
     Failed,
     SignedOk,
 }
