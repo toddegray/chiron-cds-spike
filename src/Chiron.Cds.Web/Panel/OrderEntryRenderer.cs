@@ -34,8 +34,8 @@ internal static class OrderEntryRenderer
             case OrderEntryStatus.SignedOk:
                 RenderSignedBanner(sb, view.WrittenId, view.PatientId);
                 break;
-            case OrderEntryStatus.Preview:
-                RenderPreview(sb, view);
+            case OrderEntryStatus.NotAuthorised:
+                RenderNotAuthorised(sb, view);
                 break;
             default:
                 RenderResultBanner(sb, view);
@@ -47,18 +47,14 @@ internal static class OrderEntryRenderer
         return sb.ToString();
     }
 
-    private static void RenderPreview(StringBuilder sb, OrderEntryView view)
+    private static void RenderNotAuthorised(StringBuilder sb, OrderEntryView view)
     {
-        sb.Append("<div class=\"banner info\">");
-        sb.Append("CDS cleared. <strong>Preview only</strong> — no SMART session active, so this draft was not transmitted to the EHR. ");
-        sb.Append("Below is the exact <code>MedicationRequest</code> Chiron would <code>POST</code> to the FHIR endpoint once authenticated.");
-        sb.Append("</div>");
-        RenderCards(sb, view);
-        sb.Append("<section class=\"preview-pane\"><h2>Pending FHIR payload</h2>");
-        sb.Append("<pre class=\"preview-json\">").Append(WebEncode(view.PreviewJson ?? string.Empty)).Append("</pre>");
-        sb.Append("<form method=\"get\" action=\"/app/patient/").Append(Uri.EscapeDataString(view.PatientId)).Append("/orders\">");
-        sb.Append("<button type=\"submit\" class=\"btn secondary\">Discard and start over</button>");
-        sb.Append("</form>");
+        sb.Append("<section class=\"signin-pane\">");
+        sb.Append("<h2>Sign in to write orders</h2>");
+        sb.Append("<p>Submitting an order writes a real <code>MedicationRequest</code> to the EHR's authenticated FHIR endpoint, ");
+        sb.Append("which requires an active SMART on FHIR session.</p>");
+        sb.Append("<p><a class=\"btn primary\" href=\"/smart/launch\">Start SMART launch</a> ");
+        sb.Append("<a class=\"btn secondary\" href=\"/app/patient/").Append(Uri.EscapeDataString(view.PatientId)).Append("/orders\">Back to draft</a></p>");
         sb.Append("</section>");
     }
 
@@ -370,13 +366,11 @@ internal static class OrderEntryRenderer
         .link-back { display:inline-block; margin-top:.5rem; color:var(--info); text-decoration:none; }
         .link-back:hover { text-decoration:underline; }
 
-        .preview-pane { grid-column: 1 / -1; background:var(--surface); border-radius:14px;
-                        padding:1rem 1.25rem; box-shadow:0 1px 2px rgba(0,0,0,.04); margin-top:1rem; }
-        .preview-pane h2 { font-size:.78rem; text-transform:uppercase; letter-spacing:.06em;
-                           color:var(--ink-muted); font-weight:600; margin:0 0 .5rem; }
-        .preview-json { background:#0e1116; color:#c9d1d9; padding:1rem; border-radius:10px;
-                        font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:.78rem;
-                        line-height:1.45; overflow-x:auto; white-space:pre; }
+        .signin-pane { grid-column: 1 / -1; background:var(--surface); border-radius:14px;
+                       padding:1.5rem 1.75rem; box-shadow:0 1px 2px rgba(0,0,0,.04); max-width:60ch; }
+        .signin-pane h2 { font-size:1.1rem; margin:0 0 .5rem; }
+        .signin-pane p { margin:.4rem 0; color:var(--ink-soft); }
+        .signin-pane .btn { display:inline-block; text-decoration:none; margin-right:.5rem; }
 
         @media (max-width: 880px) { .order-main { grid-template-columns: 1fr; } }
     </style>";
@@ -395,14 +389,13 @@ public sealed record OrderEntryView(
     IReadOnlySet<string> AcknowledgedFingerprints,
     OrderEntryStatus Status,
     string? Message,
-    string? WrittenId,
-    string? PreviewJson);
+    string? WrittenId);
 
 public enum OrderEntryStatus
 {
     Empty,
     Blocked,
-    Preview,
+    NotAuthorised,
     Failed,
     SignedOk,
 }

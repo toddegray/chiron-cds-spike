@@ -141,27 +141,6 @@ public class OrderEntryServiceUnitTests
     }
 
     [Fact]
-    public void SerialisePreview_Produces_Indented_Fhir_Json_With_The_Resource_Fields()
-    {
-        // Pins the real Firely serialiser path the Preview branch takes when
-        // no SMART session is present. Without this, a stub-only renderer
-        // test could pass even if `ForFhir` were mis-configured.
-        var mr = OrderEntryService.BuildMedicationRequest("12674028", Draft());
-        var json = OrderEntryService.SerialisePreview(mr);
-
-        json.Should().Contain("\"resourceType\": \"MedicationRequest\"",
-            because: "the Firely FHIR JSON converter must emit the FHIR resourceType discriminator");
-        json.Should().Contain("\"intent\": \"order\"",
-            because: "BuildMedicationRequest sets intent=order and the serialiser must round-trip it");
-        json.Should().Contain("\"reference\": \"Patient/12674028\"",
-            because: "the subject reference carries the patient id into the payload");
-        json.Should().Contain("\"text\": \"metformin 500 mg tablet\"",
-            because: "the composite medication text round-trips through the serialiser");
-        json.Should().Contain("\n",
-            because: "WriteIndented=true must produce multi-line JSON, not a single-line blob");
-    }
-
-    [Fact]
     public async Task SignAsync_With_Two_Unacked_Critical_Cards_Returns_Pluralised_Blocked_Message()
     {
         // Drives the real `SignAsync` plural branch ('Acknowledge 2 critical
@@ -211,11 +190,10 @@ public class OrderEntryServiceUnitTests
     }
 
     [Fact]
-    public async Task SignAsync_Without_Access_Token_Returns_Preview_With_Real_Fhir_Json()
+    public async Task SignAsync_Without_Access_Token_Returns_NotAuthorised()
     {
-        // Drives the real Preview branch end-to-end through production
-        // SignAsync — no stubbed write factory — so BuildMedicationRequest
-        // + SerialisePreview + OrderWriteResult.Preview wiring is exercised.
+        // No SMART session = honest "not authorised" — never a synthesised
+        // FHIR-JSON dump or any other dev-toolbox surface.
         var svc = new NoCardsStub();
         var result = await svc.SignAsync(
             patientId: "p1",
@@ -223,11 +201,10 @@ public class OrderEntryServiceUnitTests
             accessToken: null,
             acknowledgedFingerprints: new HashSet<string>(StringComparer.Ordinal),
             ct: CancellationToken.None);
-        result.Status.Should().Be(OrderWriteStatus.Preview);
+        result.Status.Should().Be(OrderWriteStatus.NotAuthorised);
         result.Cards.Should().BeEmpty();
-        result.PreviewJson.Should().NotBeNullOrEmpty();
-        result.PreviewJson.Should().Contain("\"resourceType\": \"MedicationRequest\"");
-        result.PreviewJson.Should().Contain("\"intent\": \"order\"");
+        result.Message.Should().BeNull();
+        result.WrittenId.Should().BeNull();
     }
 
     [Fact]

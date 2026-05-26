@@ -49,8 +49,7 @@ public sealed class PanelController : ControllerBase
         var view = BuildOrderView(id, entry, OrderDraft.Empty,
             Array.Empty<CdsHooks.Models.CdsCard>(),
             OrderEntryStatus.Empty, message: null, writtenId: null,
-            acknowledged: new HashSet<string>(StringComparer.Ordinal),
-            previewJson: null);
+            acknowledged: new HashSet<string>(StringComparer.Ordinal));
         return Content(
             OrderEntryRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "orders")),
             MediaTypeNames.Text.Html);
@@ -76,12 +75,10 @@ public sealed class PanelController : ControllerBase
 
         // Single-button flow: every submit always runs CDS first, then
         // attempts to write. The result type tells the renderer whether
-        // to show the would-be FHIR payload (no session), the acknowledge
-        // checkboxes (critical alerts), the success page (wrote), or the
-        // error banner (FHIR write blew up).
+        // to render the success page, the acknowledge checkboxes, the
+        // sign-in prompt (no SMART session), or the error banner.
         var accessToken = ReadSessionToken();
         var write = await _orders.SignAsync(id, draft, accessToken, ack, ct).ConfigureAwait(false);
-        string? previewJson = null;
         switch (write.Status)
         {
             case OrderWriteStatus.Ok:
@@ -94,10 +91,9 @@ public sealed class PanelController : ControllerBase
                 message = write.Message;
                 cards = write.Cards;
                 break;
-            case OrderWriteStatus.Preview:
-                status = OrderEntryStatus.Preview;
-                cards = write.Cards;
-                previewJson = write.PreviewJson;
+            case OrderWriteStatus.NotAuthorised:
+                status = OrderEntryStatus.NotAuthorised;
+                cards = Array.Empty<CdsHooks.Models.CdsCard>();
                 break;
             default:
                 status = OrderEntryStatus.Failed;
@@ -106,7 +102,7 @@ public sealed class PanelController : ControllerBase
                 break;
         }
 
-        var view = BuildOrderView(id, entry, draft, cards, status, message, writtenId, ack, previewJson);
+        var view = BuildOrderView(id, entry, draft, cards, status, message, writtenId, ack);
         return Content(
             OrderEntryRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "orders")),
             MediaTypeNames.Text.Html);
@@ -127,8 +123,7 @@ public sealed class PanelController : ControllerBase
         OrderEntryStatus status,
         string? message,
         string? writtenId,
-        IReadOnlySet<string> acknowledged,
-        string? previewJson) => new(
+        IReadOnlySet<string> acknowledged) => new(
             PatientId: id,
             PatientDisplayName: entry?.DisplayName ?? $"Patient {id}",
             PatientSubline: BuildPatientSubline(entry),
@@ -138,8 +133,7 @@ public sealed class PanelController : ControllerBase
             AcknowledgedFingerprints: acknowledged,
             Status: status,
             Message: message,
-            WrittenId: writtenId,
-            PreviewJson: previewJson);
+            WrittenId: writtenId);
 
     private static string? BuildPatientSubline(PanelEntry? entry)
     {

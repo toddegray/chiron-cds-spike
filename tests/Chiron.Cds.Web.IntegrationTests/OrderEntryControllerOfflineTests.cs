@@ -85,23 +85,22 @@ public class OrderEntryControllerOfflineTests : IClassFixture<OrderEntryControll
     }
 
     [Fact]
-    public async Task Post_Without_Session_Renders_Preview_Page_With_Json()
+    public async Task Post_Without_Session_Renders_Clean_Sign_In_Pane()
     {
-        // The 'preview' patient takes the no-session branch — CDS passes,
-        // no token, so the renderer shows the would-be FHIR payload.
         using var client = _factory.CreateClient();
-        var resp = await client.PostAsync("/app/patient/p-preview/orders", new FormUrlEncodedContent(new[]
+        var resp = await client.PostAsync("/app/patient/p-no-session/orders", new FormUrlEncodedContent(new[]
         {
             new KeyValuePair<string, string>("DrugName", "metformin"),
             new KeyValuePair<string, string>("Strength", "500 mg"),
             new KeyValuePair<string, string>("Refills", "3"),
         }));
         var body = await resp.Content.ReadAsStringAsync();
-        body.Should().Contain("class=\"preview-json\"");
-        body.Should().Contain("Preview only",
-            because: "the no-session path explains why the order wasn't transmitted");
-        body.Should().Contain("MedicationRequest",
-            because: "the rendered JSON contains the FHIR resourceType");
+        body.Should().Contain("class=\"signin-pane\"");
+        body.Should().Contain("Sign in to write orders");
+        body.Should().Contain("href=\"/smart/launch\"");
+        body.Should().NotContain("preview-json",
+            because: "the dev-toolbox JSON dump is gone — no synthesised FHIR shown to the user");
+        body.Should().NotContain("Pending FHIR payload");
     }
 
     [Fact]
@@ -182,9 +181,7 @@ public class OrderEntryControllerOfflineTests : IClassFixture<OrderEntryControll
                                 new CdsCardSource("Chiron"), "do not proceed", "fp-critical", Array.Empty<CdsCoding>()),
                         }),
                 "p-block" => OrderWriteResult.Ok("MR-stub-99"),
-                "p-preview" => OrderWriteResult.Preview(
-                    "{\n  \"resourceType\": \"MedicationRequest\",\n  \"intent\": \"order\"\n}",
-                    Array.Empty<CdsCard>()),
+                "p-no-session" => OrderWriteResult.NotAuthorised(),
                 "p-ok" => OrderWriteResult.Ok("MR-stub-99"),
                 _ => OrderWriteResult.Failed("Unexpected stub branch."),
             });

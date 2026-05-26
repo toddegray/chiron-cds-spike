@@ -26,8 +26,7 @@ public class OrderEntryRendererTests
         IReadOnlyList<CdsCard>? cards = null,
         string? message = null,
         string? writtenId = null,
-        IReadOnlySet<string>? acknowledged = null,
-        string? previewJson = null) => new(
+        IReadOnlySet<string>? acknowledged = null) => new(
             PatientId: "p1",
             PatientDisplayName: "SMITH, ANNIE",
             PatientSubline: "35y · Female · MRN p1",
@@ -37,8 +36,7 @@ public class OrderEntryRendererTests
             AcknowledgedFingerprints: acknowledged ?? new HashSet<string>(StringComparer.Ordinal),
             Status: status,
             Message: message,
-            WrittenId: writtenId,
-            PreviewJson: previewJson);
+            WrittenId: writtenId);
 
     [Fact]
     public void Empty_View_Renders_Form_With_Pharmacy_Dropdown_And_Single_Sign_Button()
@@ -124,22 +122,22 @@ public class OrderEntryRendererTests
     }
 
     [Fact]
-    public void Preview_Status_Renders_Json_Block_And_No_Sign_Button()
+    public void NotAuthorised_Status_Renders_Sign_In_Pane_Linking_To_Smart_Launch()
     {
         var html = OrderEntryRenderer.Render(
-            View(OrderEntryStatus.Preview,
-                cards: Array.Empty<CdsCard>(),
-                previewJson: "{\n  \"resourceType\": \"MedicationRequest\"\n}"),
+            View(OrderEntryStatus.NotAuthorised),
             NavBar, Tabs);
-        html.Should().Contain("class=\"banner info\"");
-        html.Should().Contain("Preview only");
-        html.Should().Contain("not transmitted");
-        html.Should().Contain("class=\"preview-json\"");
-        html.Should().Contain("&quot;resourceType&quot;: &quot;MedicationRequest&quot;",
-            because: "the FHIR JSON is HTML-encoded into the preview block, never injected as raw HTML");
-        html.Should().NotContain(">Sign order</button>",
-            because: "the form is suppressed on the preview page — the user clicks 'Discard and start over' if they want to edit");
-        html.Should().Contain("Discard and start over");
+        html.Should().Contain("class=\"signin-pane\"");
+        html.Should().Contain("Sign in to write orders");
+        html.Should().Contain("href=\"/smart/launch\"",
+            because: "the no-session page links straight to the SMART launch entry");
+        html.Should().Contain("href=\"/app/patient/p1/orders\"",
+            because: "the secondary action returns to the draft form");
+        html.Should().NotContain("preview-json",
+            because: "no FHIR JSON dump on the no-session page — the user never sees dev-toolbox surfaces");
+        html.Should().NotContain("Pending FHIR payload");
+        html.Should().NotContain("\"resourceType\"",
+            because: "no synthesised FHIR resource anywhere on the sign-in page");
     }
 
     [Fact]

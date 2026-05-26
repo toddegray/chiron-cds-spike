@@ -114,16 +114,10 @@ public class OrderEntryService
                 $"Acknowledge {unack.Length} critical alert{(unack.Length == 1 ? "" : "s")} to sign.",
                 evaluation.Cards);
 
-        var resource = BuildMedicationRequest(patientId, draft);
-
         if (string.IsNullOrEmpty(accessToken))
-        {
-            // No SMART session — render the would-be FHIR payload as a
-            // preview instead of a dead-end "go authenticate" banner. The
-            // doctor sees end-to-end what Chiron would have sent.
-            return OrderWriteResult.Preview(SerialisePreview(resource), evaluation.Cards);
-        }
+            return OrderWriteResult.NotAuthorised();
 
+        var resource = BuildMedicationRequest(patientId, draft);
         try
         {
             var id = await WriteAsync(resource, accessToken, ct).ConfigureAwait(false);
@@ -146,20 +140,6 @@ public class OrderEntryService
             Frequency: string.IsNullOrWhiteSpace(draft.Frequency) ? null : draft.Frequency,
             Route: string.IsNullOrWhiteSpace(draft.Route) ? null : draft.Route,
             Active: true);
-    }
-
-    /// <summary>
-    /// Serialise a <see cref="MedicationRequest"/> to indented FHIR JSON for
-    /// the no-session preview pane. Exposed as internal-static so tests can
-    /// pin the contract (resourceType, intent, indentation) against the real
-    /// Firely converter without having to drive a full request lifecycle.
-    /// </summary>
-    internal static string SerialisePreview(MedicationRequest resource)
-    {
-        var jsonOptions = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
-        Hl7.Fhir.Serialization.FhirJsonConverterOptionsExtensions.ForFhir(
-            jsonOptions, Hl7.Fhir.Model.ModelInfo.ModelInspector);
-        return System.Text.Json.JsonSerializer.Serialize(resource, jsonOptions);
     }
 
     /// <summary>Build the FHIR <see cref="MedicationRequest"/> resource we POST to the EHR.</summary>
@@ -314,23 +294,22 @@ public sealed record OrderWriteResult(
     OrderWriteStatus Status,
     string? WrittenId,
     string? Message,
-    IReadOnlyList<CdsCard> Cards,
-    string? PreviewJson)
+    IReadOnlyList<CdsCard> Cards)
 {
     public static OrderWriteResult Ok(string id) =>
-        new(OrderWriteStatus.Ok, id, null, Array.Empty<CdsCard>(), null);
+        new(OrderWriteStatus.Ok, id, null, Array.Empty<CdsCard>());
     public static OrderWriteResult Blocked(string message, IReadOnlyList<CdsCard> cards) =>
-        new(OrderWriteStatus.Blocked, null, message, cards, null);
-    public static OrderWriteResult Preview(string previewJson, IReadOnlyList<CdsCard> cards) =>
-        new(OrderWriteStatus.Preview, null, null, cards, previewJson);
+        new(OrderWriteStatus.Blocked, null, message, cards);
+    public static OrderWriteResult NotAuthorised() =>
+        new(OrderWriteStatus.NotAuthorised, null, null, Array.Empty<CdsCard>());
     public static OrderWriteResult Failed(string message) =>
-        new(OrderWriteStatus.Failed, null, message, Array.Empty<CdsCard>(), null);
+        new(OrderWriteStatus.Failed, null, message, Array.Empty<CdsCard>());
 }
 
 public enum OrderWriteStatus
 {
     Ok,
     Blocked,
-    Preview,
+    NotAuthorised,
     Failed,
 }
