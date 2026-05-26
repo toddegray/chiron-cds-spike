@@ -25,6 +25,7 @@ public sealed class PanelController : ControllerBase
     private readonly PatientSearchService _search;
     private readonly ResultReviewService _results;
     private readonly OrderEntryService _orders;
+    private readonly NoteEntryService _notes;
     private readonly ITokenStore _tokens;
 
     public PanelController(
@@ -32,14 +33,74 @@ public sealed class PanelController : ControllerBase
         PatientSearchService search,
         ResultReviewService results,
         OrderEntryService orders,
+        NoteEntryService notes,
         ITokenStore tokens)
     {
         _panel = panel;
         _search = search;
         _results = results;
         _orders = orders;
+        _notes = notes;
         _tokens = tokens;
     }
+
+    [HttpGet("patient/{id}/notes")]
+    public async Task<IActionResult> NotesForm(string id, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        var (entry, page) = await LoadNotesPageAsync(id, ct).ConfigureAwait(false);
+        var view = BuildNotesView(id, entry, page.Draft, page.History, NoteEntryStatus.Empty,
+            message: null, chartError: page.Error, writtenId: null);
+        return Content(
+            NoteEntryRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "notes")),
+            MediaTypeNames.Text.Html);
+    }
+
+    [HttpPost("patient/{id}/notes")]
+    public async Task<IActionResult> NotesSubmit(
+        string id,
+        [FromForm] NoteForm form,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentNullException.ThrowIfNull(form);
+
+        var draft = form.ToDraft();
+        var accessToken = ReadSessionToken();
+        var write = await _notes.SignAsync(id, draft, accessToken, ct).ConfigureAwait(false);
+
+        var (entry, page) = await LoadNotesPageAsync(id, ct).ConfigureAwait(false);
+        var (status, message, writtenId) = write.Status switch
+        {
+            NoteWriteStatus.Ok => (NoteEntryStatus.SignedOk, (string?)null, write.WrittenId),
+            NoteWriteStatus.NotAuthorised => (NoteEntryStatus.NotAuthorised, (string?)null, (string?)null),
+            _ => (NoteEntryStatus.Failed, write.Message, (string?)null),
+        };
+        var view = BuildNotesView(id, entry, draft, page.History, status, message, page.Error, writtenId);
+        return Content(
+            NoteEntryRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "notes")),
+            MediaTypeNames.Text.Html);
+    }
+
+    private async Task<(PanelEntry? Entry, NotesPageData Page)> LoadNotesPageAsync(string id, CancellationToken ct)
+    {
+        var entry = await _panel.GetPatientAsync(id, ct).ConfigureAwait(false);
+        var page = await _notes.GetForPatientAsync(id, ct).ConfigureAwait(false);
+        return (entry, page);
+    }
+
+    private NoteEntryView BuildNotesView(
+        string id, PanelEntry? entry, NoteDraft draft, IReadOnlyList<NoteSummary> history,
+        NoteEntryStatus status, string? message, string? chartError, string? writtenId) => new(
+            PatientId: id,
+            PatientDisplayName: entry?.DisplayName ?? $"Patient {id}",
+            PatientSubline: BuildPatientSubline(entry),
+            Draft: draft,
+            History: history,
+            Status: status,
+            Message: message,
+            ChartError: chartError,
+            WrittenId: writtenId);
 
     [HttpGet("patient/{id}/orders")]
     public async Task<IActionResult> OrdersForm(string id, CancellationToken ct)
@@ -233,7 +294,7 @@ public sealed class PanelController : ControllerBase
             AlertCount: e.Cards.Count);
     }
 
-    /// <summary>Per-patient tabs strip — Visit brief / Results / Orders. Future: Notes.</summary>
+    /// <summary>Per-patient tabs strip — Visit brief / Results / Orders / Notes.</summary>
     private static IReadOnlyList<ChartTab> ChartTabs(string patientId, string activeTab)
     {
         var escaped = Uri.EscapeDataString(patientId);
@@ -242,6 +303,7 @@ public sealed class PanelController : ControllerBase
             new ChartTab("Visit brief", $"/app/patient/{escaped}", activeTab == "brief"),
             new ChartTab("Results", $"/app/patient/{escaped}/results", activeTab == "results"),
             new ChartTab("Orders", $"/app/patient/{escaped}/orders", activeTab == "orders"),
+            new ChartTab("Notes", $"/app/patient/{escaped}/notes", activeTab == "notes"),
         };
     }
 
@@ -287,6 +349,17 @@ public sealed class PanelController : ControllerBase
                 SubstitutionAllowed: SubstitutionAllowed,
                 NoteToPharmacist: NoteToPharmacist);
         }
+    }
+
+    /// <summary>Form-binder shape for the SOAP note POST.</summary>
+    public sealed class NoteForm
+    {
+        public string Subjective { get; set; } = string.Empty;
+        public string Objective { get; set; } = string.Empty;
+        public string Assessment { get; set; } = string.Empty;
+        public string Plan { get; set; } = string.Empty;
+
+        public NoteDraft ToDraft() => new(Subjective, Objective, Assessment, Plan);
     }
 
     private static string NavBar() =>

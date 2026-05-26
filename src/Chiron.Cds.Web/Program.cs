@@ -64,6 +64,7 @@ builder.Services.AddScoped<PanelService>();
 builder.Services.AddScoped<PatientSearchService>();
 builder.Services.AddScoped<ResultReviewService>();
 builder.Services.AddScoped<OrderEntryService>();
+builder.Services.AddScoped<NoteEntryService>();
 
 var app = builder.Build();
 
