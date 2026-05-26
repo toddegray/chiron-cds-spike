@@ -33,7 +33,8 @@ public class SignOffControllerOfflineTests : IClassFixture<SignOffControllerOffl
         body.Should().Contain("status-inprogress");
         body.Should().Contain(">Sign off and close</button>");
         body.Should().Contain("name=\"EncounterId\" value=\"enc-active\"");
-        body.Should().Contain("chart-tab active");
+        body.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p1/signoff\"",
+            because: "the Sign off step on the rail is marked active on the sign-off page");
     }
 
     [Fact]

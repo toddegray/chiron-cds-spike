@@ -1,5 +1,4 @@
 using Chiron.Cds.Web.Panel;
-using Chiron.Cds.Web.SmartLaunch;
 using FluentAssertions;
 
 namespace Chiron.Cds.Web.IntegrationTests;
@@ -7,11 +6,6 @@ namespace Chiron.Cds.Web.IntegrationTests;
 public class NoteEntryRendererTests
 {
     private const string NavBar = "<span class=\"brand\">Chiron</span>";
-    private static readonly IReadOnlyList<ChartTab> Tabs = new[]
-    {
-        new ChartTab("Visit brief", "/app/patient/p1", IsActive: false),
-        new ChartTab("Notes", "/app/patient/p1/notes", IsActive: true),
-    };
 
     private static NoteEntryView View(
         NoteEntryStatus status = NoteEntryStatus.Empty,
@@ -33,14 +27,15 @@ public class NoteEntryRendererTests
     [Fact]
     public void Empty_View_Renders_All_Four_SOAP_Textareas_And_Sign_Button()
     {
-        var html = NoteEntryRenderer.Render(View(), NavBar, Tabs);
+        var html = NoteEntryRenderer.Render(View(), NavBar);
         html.Should().Contain("<h1>SMITH, ANNIE</h1>");
         html.Should().Contain("name=\"Subjective\"");
         html.Should().Contain("name=\"Objective\"");
         html.Should().Contain("name=\"Assessment\"");
         html.Should().Contain("name=\"Plan\"");
         html.Should().Contain(">Sign and save note</button>");
-        html.Should().Contain("chart-tab active");
+        html.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p1/notes\"",
+            because: "the Notes step on the rail is highlighted active on the notes page");
     }
 
     [Fact]
@@ -51,7 +46,7 @@ public class NoteEntryRendererTests
             Objective: "Lungs clear bilaterally.",
             Assessment: "Acute viral URI.",
             Plan: "Symptomatic care; recheck in 7 days.");
-        var html = NoteEntryRenderer.Render(View(draft: draft), NavBar, Tabs);
+        var html = NoteEntryRenderer.Render(View(draft: draft), NavBar);
         html.Should().Contain("Patient reports 3 days of cough.");
         html.Should().Contain("Lungs clear bilaterally.");
         html.Should().Contain("Acute viral URI.");
@@ -68,7 +63,7 @@ public class NoteEntryRendererTests
             new NoteSummary("Discharge summary", "Clinical Note", "superseded",
                 DateTimeOffset.Parse("2023-11-02T00:00:00Z")),
         };
-        var html = NoteEntryRenderer.Render(View(history: history), NavBar, Tabs);
+        var html = NoteEntryRenderer.Render(View(history: history), NavBar);
         html.Should().Contain("Progress note");
         html.Should().Contain("Discharge summary");
         html.Should().Contain("status-current");
@@ -80,14 +75,14 @@ public class NoteEntryRendererTests
     [Fact]
     public void Empty_History_Renders_Empty_State()
     {
-        var html = NoteEntryRenderer.Render(View(), NavBar, Tabs);
+        var html = NoteEntryRenderer.Render(View(), NavBar);
         html.Should().Contain("No prior notes on file");
     }
 
     [Fact]
     public void ChartError_Renders_Banner_While_Keeping_Form_Usable()
     {
-        var html = NoteEntryRenderer.Render(View(chartError: "Timed out"), NavBar, Tabs);
+        var html = NoteEntryRenderer.Render(View(chartError: "Timed out"), NavBar);
         html.Should().Contain("class=\"banner err\"");
         html.Should().Contain("Timed out");
         html.Should().Contain("name=\"Subjective\"",
@@ -97,7 +92,7 @@ public class NoteEntryRendererTests
     [Fact]
     public void NotAuthorised_Status_Renders_Sign_In_Pane_Linking_To_Smart_Launch()
     {
-        var html = NoteEntryRenderer.Render(View(NoteEntryStatus.NotAuthorised), NavBar, Tabs);
+        var html = NoteEntryRenderer.Render(View(NoteEntryStatus.NotAuthorised), NavBar);
         html.Should().Contain("class=\"signin-pane\"");
         html.Should().Contain("Sign in to save the note");
         html.Should().Contain("href=\"/smart/launch\"");
@@ -112,7 +107,7 @@ public class NoteEntryRendererTests
     {
         var html = NoteEntryRenderer.Render(
             View(NoteEntryStatus.Failed, message: "FHIR write failed: FHIR 403 Forbidden"),
-            NavBar, Tabs);
+            NavBar);
         html.Should().Contain("class=\"banner err\"");
         html.Should().Contain("FHIR 403 Forbidden");
         html.Should().Contain("name=\"Subjective\"");
@@ -123,7 +118,7 @@ public class NoteEntryRendererTests
     {
         var html = NoteEntryRenderer.Render(
             View(NoteEntryStatus.SignedOk, writtenId: "DR-9988"),
-            NavBar, Tabs);
+            NavBar);
         html.Should().Contain("class=\"banner ok\"");
         html.Should().Contain("<code>DR-9988</code>");
         html.Should().Contain("href=\"/app/patient/p1\"");
@@ -142,7 +137,7 @@ public class NoteEntryRendererTests
         {
             new NoteSummary("<svg onload=alert(2)>", "<b>Cat</b>", "current", DateTimeOffset.UtcNow),
         };
-        var html = NoteEntryRenderer.Render(View(draft: draft, history: history), NavBar, Tabs);
+        var html = NoteEntryRenderer.Render(View(draft: draft, history: history), NavBar);
         html.Should().NotContain("<script>alert");
         html.Should().NotContain("<img src=x onerror");
         html.Should().NotContain("<svg onload=alert");

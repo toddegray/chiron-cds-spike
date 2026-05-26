@@ -89,7 +89,7 @@ public sealed class PanelController : ControllerBase
             PageError: page.Error,
             WrittenId: writtenId);
         return Content(
-            ServiceRequestRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "orders")),
+            ServiceRequestRenderer.Render(view, NavBar()),
             MediaTypeNames.Text.Html);
     }
 
@@ -118,7 +118,7 @@ public sealed class PanelController : ControllerBase
         var page = await _signoff.GetForPatientAsync(id, ct).ConfigureAwait(false);
         var view = BuildSignOffView(id, entry, page, SignOffStatus.Empty, message: null, writtenId: null);
         return Content(
-            EncounterCloseRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "signoff")),
+            EncounterCloseRenderer.Render(view, NavBar()),
             MediaTypeNames.Text.Html);
     }
 
@@ -148,7 +148,7 @@ public sealed class PanelController : ControllerBase
         };
         var view = BuildSignOffView(id, entry, page, status, message, writtenId);
         return Content(
-            EncounterCloseRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "signoff")),
+            EncounterCloseRenderer.Render(view, NavBar()),
             MediaTypeNames.Text.Html);
     }
 
@@ -172,7 +172,7 @@ public sealed class PanelController : ControllerBase
         var view = BuildNotesView(id, entry, page.Draft, page.History, NoteEntryStatus.Empty,
             message: null, chartError: page.Error, writtenId: null);
         return Content(
-            NoteEntryRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "notes")),
+            NoteEntryRenderer.Render(view, NavBar()),
             MediaTypeNames.Text.Html);
     }
 
@@ -198,7 +198,7 @@ public sealed class PanelController : ControllerBase
         };
         var view = BuildNotesView(id, entry, draft, page.History, status, message, page.Error, writtenId);
         return Content(
-            NoteEntryRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "notes")),
+            NoteEntryRenderer.Render(view, NavBar()),
             MediaTypeNames.Text.Html);
     }
 
@@ -232,7 +232,7 @@ public sealed class PanelController : ControllerBase
             OrderEntryStatus.Empty, message: null, writtenId: null,
             acknowledged: new HashSet<string>(StringComparer.Ordinal));
         return Content(
-            OrderEntryRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "orders")),
+            OrderEntryRenderer.Render(view, NavBar()),
             MediaTypeNames.Text.Html);
     }
 
@@ -285,7 +285,7 @@ public sealed class PanelController : ControllerBase
 
         var view = BuildOrderView(id, entry, draft, cards, status, message, writtenId, ack);
         return Content(
-            OrderEntryRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "orders")),
+            OrderEntryRenderer.Render(view, NavBar()),
             MediaTypeNames.Text.Html);
     }
 
@@ -332,7 +332,7 @@ public sealed class PanelController : ControllerBase
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         var data = await _results.GetForPatientAsync(id, ct).ConfigureAwait(false);
         return Content(
-            ResultReviewRenderer.Render(data, NavBar(), ChartTabs(id, activeTab: "results")),
+            ResultReviewRenderer.Render(data, NavBar(), patientId: id),
             MediaTypeNames.Text.Html);
     }
 
@@ -398,7 +398,7 @@ public sealed class PanelController : ControllerBase
             cards: entry.Cards,
             navBar: NavBar(),
             patient: header,
-            chartTabs: ChartTabs(id, activeTab: "brief"));
+            patientId: id);
         return Content(html, MediaTypeNames.Text.Html);
     }
 
@@ -412,20 +412,6 @@ public sealed class PanelController : ControllerBase
             HeadlineFlag: e.Error is not null ? $"Could not load chart — {e.Error}" : headline?.Summary,
             HeadlineSeverity: e.Error is not null ? "warning" : headline?.Indicator,
             AlertCount: e.Cards.Count);
-    }
-
-    /// <summary>Per-patient tabs strip: Visit brief / Results / Orders / Notes / Sign off.</summary>
-    private static IReadOnlyList<ChartTab> ChartTabs(string patientId, string activeTab)
-    {
-        var escaped = Uri.EscapeDataString(patientId);
-        return new[]
-        {
-            new ChartTab("Visit brief", $"/app/patient/{escaped}", activeTab == "brief"),
-            new ChartTab("Results", $"/app/patient/{escaped}/results", activeTab == "results"),
-            new ChartTab("Orders", $"/app/patient/{escaped}/orders", activeTab == "orders"),
-            new ChartTab("Notes", $"/app/patient/{escaped}/notes", activeTab == "notes"),
-            new ChartTab("Sign off", $"/app/patient/{escaped}/signoff", activeTab == "signoff"),
-        };
     }
 
     /// <summary>

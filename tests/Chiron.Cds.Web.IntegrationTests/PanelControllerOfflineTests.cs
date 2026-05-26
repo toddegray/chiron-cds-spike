@@ -67,17 +67,22 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
     }
 
     [Fact]
-    public async Task Patient_Route_Renders_Chart_Tabs_With_Brief_Active_On_Success()
+    public async Task Patient_Route_Renders_Workflow_Rail_With_Brief_Active_On_Success()
     {
         using var client = _factory.CreateClient();
         var resp = await client.GetAsync("/app/patient/p-good");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
-        body.Should().Contain("class=\"chart-tabs\"");
+        body.Should().Contain("class=\"chart-rail\"");
         body.Should().Contain("href=\"/app/patient/p-good/results\"",
-            because: "the Results tab on the Visit Brief links into the per-patient results route");
-        body.Should().MatchRegex("chart-tab active\"\\s*href=\"/app/patient/p-good\"",
-            because: "the Visit brief tab is active when the brief is the rendered page");
+            because: "the Results step on the rail links into the per-patient results route");
+        body.Should().Contain("href=\"/app/patient/p-good/orders\"");
+        body.Should().Contain("href=\"/app/patient/p-good/notes\"");
+        body.Should().Contain("href=\"/app/patient/p-good/signoff\"");
+        body.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p-good\"",
+            because: "the Brief step is highlighted active when the brief is the rendered page");
+        body.Should().Contain("Next: Results →",
+            because: "the workflow rail prompts the doctor to advance to the Results step");
     }
 
     [Fact]

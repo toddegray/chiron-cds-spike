@@ -17,7 +17,7 @@ namespace Chiron.Cds.Web.IntegrationTests;
 
 /// <summary>
 /// Offline tests for <c>GET /app/patient/{id}/results</c>: the controller
-/// wiring + chart-tab assembly + error-banner branch, with the
+/// wiring + workflow-rail assembly + error-banner branch, with the
 /// <see cref="ResultReviewService"/> replaced by a deterministic stub.
 /// </summary>
 public class ResultsControllerOfflineTests : IClassFixture<ResultsControllerOfflineTests.Factory>
@@ -30,7 +30,7 @@ public class ResultsControllerOfflineTests : IClassFixture<ResultsControllerOffl
     }
 
     [Fact]
-    public async Task Renders_Trend_And_Report_Sections_Plus_Chart_Tabs()
+    public async Task Renders_Trend_And_Report_Sections_Plus_Workflow_Rail()
     {
         using var client = _factory.CreateClient();
         var resp = await client.GetAsync("/app/patient/p-good/results");
@@ -46,12 +46,12 @@ public class ResultsControllerOfflineTests : IClassFixture<ResultsControllerOffl
             because: "the stubbed DiagnosticReport renders in the reports section");
         body.Should().Contain("status-amended",
             because: "the report status pill carries through to the rendered class");
-        body.Should().Contain("class=\"chart-tabs\"",
-            because: "the patient page renders a tab strip linking brief ↔ results");
+        body.Should().Contain("class=\"chart-rail\"",
+            because: "the patient page renders the visit-workflow rail");
         body.Should().Contain("href=\"/app/patient/p-good\"",
-            because: "the Visit brief tab links to the existing /app/patient/{id} route");
-        body.Should().Contain("chart-tab active",
-            because: "the currently-rendered Results tab is marked active");
+            because: "the Visit brief step on the rail links back to the chart root");
+        body.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p-good/results\"",
+            because: "the Results step is marked active on the rail when the Results page is rendered");
     }
 
     [Fact]

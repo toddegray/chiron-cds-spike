@@ -31,14 +31,15 @@ public class OrderEntryControllerOfflineTests : IClassFixture<OrderEntryControll
     }
 
     [Fact]
-    public async Task Get_Renders_Empty_Form_With_Chart_Tabs_And_Pharmacy_Options()
+    public async Task Get_Renders_Empty_Form_With_Workflow_Rail_And_Pharmacy_Options()
     {
         using var client = _factory.CreateClient();
         var resp = await client.GetAsync("/app/patient/p1/orders");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
         body.Should().Contain("name=\"DrugName\"");
-        body.Should().Contain("chart-tab active");
+        body.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p1/orders\"",
+            because: "the Orders step on the rail is marked active on the medication order page");
         body.Should().Contain("href=\"/app/patient/p1/results\"");
         body.Should().Contain("<option value=\"stub-pharmacy\"");
         body.Should().Contain(">Sign order</button>",

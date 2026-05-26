@@ -6,7 +6,7 @@ namespace Chiron.Cds.Web.Panel;
 /// <summary>
 /// Pill-strip sub-nav rendered at the top of every order sub-page so the
 /// doctor can move between Medication / Lab / Imaging without leaving the
-/// Orders chart-tab. The Orders chart-tab stays active for all three.
+/// Orders rail step. The Orders rail step stays active for all three.
 /// </summary>
 internal static class OrderSubNav
 {

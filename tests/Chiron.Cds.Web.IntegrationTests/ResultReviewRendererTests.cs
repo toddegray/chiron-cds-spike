@@ -1,5 +1,4 @@
 using Chiron.Cds.Web.Panel;
-using Chiron.Cds.Web.SmartLaunch;
 using FluentAssertions;
 
 namespace Chiron.Cds.Web.IntegrationTests;
@@ -229,17 +228,25 @@ public class ResultReviewRendererTests
     }
 
     [Fact]
-    public void Header_Includes_Chart_Tabs_When_Supplied()
+    public void Header_Includes_Workflow_Rail_With_Results_Active_When_PatientId_Supplied()
     {
-        var tabs = new[]
-        {
-            new ChartTab("Visit brief", "/app/patient/p1", IsActive: false),
-            new ChartTab("Results", "/app/patient/p1/results", IsActive: true),
-        };
-        var html = ResultReviewRenderer.Render(Empty(), NavBar, tabs);
-        html.Should().Contain("class=\"chart-tabs\"");
-        html.Should().Contain("href=\"/app/patient/p1\"");
-        html.Should().Contain("chart-tab active");
-        html.Should().Contain("Results</a>");
+        var html = ResultReviewRenderer.Render(Empty(), NavBar, patientId: "p1");
+        html.Should().Contain("class=\"chart-rail\"");
+        html.Should().Contain("href=\"/app/patient/p1\"",
+            because: "the Visit brief step links back to the chart root");
+        html.Should().Contain("href=\"/app/patient/p1/results\"",
+            because: "the Results step links to the per-patient results route");
+        html.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p1/results\"",
+            because: "the Results step is highlighted active on the results page");
+        html.Should().Contain("Next: Orders →",
+            because: "the workflow rail prompts the doctor to advance to Orders after Results");
+    }
+
+    [Fact]
+    public void Header_Omits_Workflow_Rail_When_PatientId_Not_Supplied()
+    {
+        var html = ResultReviewRenderer.Render(Empty(), NavBar);
+        html.Should().NotContain("class=\"chart-rail\"",
+            because: "callers that don't pass a patientId opt out of the rail layout");
     }
 }

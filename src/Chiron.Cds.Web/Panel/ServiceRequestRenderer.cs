@@ -1,18 +1,17 @@
 using System.Globalization;
 using System.Net;
 using System.Text;
-using Chiron.Cds.Web.SmartLaunch;
 
 namespace Chiron.Cds.Web.Panel;
 
 /// <summary>
-/// Renders the lab and imaging order sub-pages inside the Orders chart
-/// tab. Shares the order sub-nav (Medications / Labs / Imaging) with the
+/// Renders the lab and imaging order sub-pages under the Orders rail
+/// step. Shares the order sub-nav (Medications / Labs / Imaging) with the
 /// medication order page so the user navigates without losing context.
 /// </summary>
 internal static class ServiceRequestRenderer
 {
-    public static string Render(ServiceRequestView view, string navBar, IReadOnlyList<ChartTab> chartTabs)
+    public static string Render(ServiceRequestView view, string navBar)
     {
         ArgumentNullException.ThrowIfNull(view);
         var sb = new StringBuilder();
@@ -22,8 +21,9 @@ internal static class ServiceRequestRenderer
         sb.Append(InlineCss());
         sb.Append("</head><body>");
         sb.Append("<nav class=\"navbar\">").Append(navBar).Append("</nav>");
-        RenderHeader(sb, view, chartTabs);
+        RenderHeader(sb, view);
 
+        ChartRail.OpenShell(sb, view.PatientId, ChartRail.Step.Orders);
         sb.Append("<main class=\"orders-main\">");
         OrderSubNav.Render(sb, view.PatientId,
             view.Category == ServiceRequestCategory.Laboratory ? OrderSubNavActive.Labs : OrderSubNavActive.Imaging);
@@ -48,26 +48,20 @@ internal static class ServiceRequestRenderer
                 RenderHistory(sb, view);
                 break;
         }
-        sb.Append("</main></body></html>");
+        sb.Append("</main>");
+        ChartRail.CloseShell(sb, view.PatientId, ChartRail.Step.Orders);
+        sb.Append("</body></html>");
         return sb.ToString();
     }
 
-    private static void RenderHeader(StringBuilder sb, ServiceRequestView view, IReadOnlyList<ChartTab> chartTabs)
+    private static void RenderHeader(StringBuilder sb, ServiceRequestView view)
     {
         sb.Append("<header class=\"page-header\"><div class=\"page-header-inner\">");
         sb.Append("<h1>").Append(WebEncode(view.PatientDisplayName)).Append("</h1>");
         if (!string.IsNullOrEmpty(view.PatientSubline))
             sb.Append("<div class=\"demographics\"><span class=\"demo-item\">")
               .Append(WebEncode(view.PatientSubline)).Append("</span></div>");
-        sb.Append("<nav class=\"chart-tabs\" aria-label=\"Chart sections\">");
-        foreach (var tab in chartTabs)
-        {
-            sb.Append("<a class=\"chart-tab");
-            if (tab.IsActive) sb.Append(" active");
-            sb.Append("\" href=\"").Append(WebEncode(tab.Href)).Append("\">")
-              .Append(WebEncode(tab.Label)).Append("</a>");
-        }
-        sb.Append("</nav></div></header>");
+        sb.Append("</div></header>");
     }
 
     private static void RenderSignedBanner(StringBuilder sb, ServiceRequestView view)
@@ -188,7 +182,7 @@ internal static class ServiceRequestRenderer
         sb.Append("</select></label>");
     }
 
-    private static string InlineCss() => @"<style>
+    private static string InlineCss() => "<style>\n" + ChartRail.SharedCss + "\n" + @"
         :root { --bg:#f5f5f7; --surface:#fff; --ink:#1d1d1f; --ink-soft:#515154; --ink-muted:#86868b;
                 --rule:#e5e5e7; --info:#1170d2; --warn:#c25e04; --crit:#d92121;
                 --warn-soft:#fff4e3; --info-soft:#e8f1fc; --crit-soft:#fde8e8; --ok:#1f8a47; --ok-soft:#e6f4ec; }
@@ -203,11 +197,6 @@ internal static class ServiceRequestRenderer
         .page-header-inner { max-width:1280px; margin:0 auto; padding:1.25rem 1.5rem 1.25rem; }
         h1 { font-size:1.65rem; letter-spacing:-.02em; font-weight:700; margin:0 0 .35rem; }
         .demographics { color:var(--ink-soft); font-size:.92rem; }
-        .chart-tabs { display:flex; gap:.25rem; margin-top:1rem; border-bottom:1px solid var(--rule); }
-        .chart-tab { padding:.55rem .9rem; font-size:.92rem; color:var(--ink-soft);
-                     text-decoration:none; border-radius:8px 8px 0 0; border-bottom:2px solid transparent; }
-        .chart-tab:hover { color:var(--ink); }
-        .chart-tab.active { color:var(--ink); font-weight:600; border-bottom-color:var(--info); }
 
         .orders-main { max-width:1280px; margin:1.5rem auto 3rem; padding:0 1.5rem; }
         .order-subnav { display:flex; gap:.5rem; margin-bottom:1.25rem; }

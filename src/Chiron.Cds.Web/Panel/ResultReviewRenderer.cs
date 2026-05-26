@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Net;
 using System.Text;
-using Chiron.Cds.Web.SmartLaunch;
 
 namespace Chiron.Cds.Web.Panel;
 
@@ -12,7 +11,7 @@ namespace Chiron.Cds.Web.Panel;
 /// </summary>
 internal static class ResultReviewRenderer
 {
-    public static string Render(ResultReviewData data, string navBar, IReadOnlyList<ChartTab>? chartTabs = null)
+    public static string Render(ResultReviewData data, string navBar, string? patientId = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         var sb = new StringBuilder();
@@ -23,8 +22,11 @@ internal static class ResultReviewRenderer
         sb.Append("</head><body>");
         sb.Append("<nav class=\"navbar\">").Append(navBar).Append("</nav>");
 
-        RenderHeader(sb, data, chartTabs);
+        RenderHeader(sb, data);
 
+        var railTarget = patientId ?? string.Empty;
+        var hasRail = !string.IsNullOrEmpty(railTarget);
+        if (hasRail) ChartRail.OpenShell(sb, railTarget, ChartRail.Step.Results);
         sb.Append("<main class=\"results-main\">");
         if (data.Error is not null)
         {
@@ -35,11 +37,13 @@ internal static class ResultReviewRenderer
             RenderTrendsSection(sb, data.Trends);
             RenderReportsSection(sb, data.Reports);
         }
-        sb.Append("</main></body></html>");
+        sb.Append("</main>");
+        if (hasRail) ChartRail.CloseShell(sb, railTarget, ChartRail.Step.Results);
+        sb.Append("</body></html>");
         return sb.ToString();
     }
 
-    private static void RenderHeader(StringBuilder sb, ResultReviewData data, IReadOnlyList<ChartTab>? chartTabs)
+    private static void RenderHeader(StringBuilder sb, ResultReviewData data)
     {
         var d = data.Demographics;
         sb.Append("<header class=\"page-header\"><div class=\"page-header-inner\">");
@@ -54,20 +58,7 @@ internal static class ResultReviewRenderer
             if (i > 0) sb.Append("<span class=\"demo-sep\"> · </span>");
             sb.Append("<span class=\"demo-item\">").Append(WebEncode(parts[i])).Append("</span>");
         }
-        sb.Append("</div>");
-        if (chartTabs is { Count: > 0 })
-        {
-            sb.Append("<nav class=\"chart-tabs\" aria-label=\"Chart sections\">");
-            foreach (var tab in chartTabs)
-            {
-                sb.Append("<a class=\"chart-tab");
-                if (tab.IsActive) sb.Append(" active");
-                sb.Append("\" href=\"").Append(WebEncode(tab.Href)).Append("\">")
-                  .Append(WebEncode(tab.Label)).Append("</a>");
-            }
-            sb.Append("</nav>");
-        }
-        sb.Append("</div></header>");
+        sb.Append("</div></div></header>");
     }
 
     private static void RenderTrendsSection(StringBuilder sb, IReadOnlyList<LabTrend> trends)
@@ -202,7 +193,7 @@ internal static class ResultReviewRenderer
         return d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     }
 
-    private static string InlineCss() => @"<style>
+    private static string InlineCss() => "<style>\n" + ChartRail.SharedCss + "\n" + @"
         :root {
             --bg: #f5f5f7; --surface: #ffffff; --ink: #1d1d1f; --ink-soft: #515154;
             --ink-muted: #86868b; --rule: #e5e5e7; --info: #1170d2; --warn: #c25e04;
@@ -223,12 +214,6 @@ internal static class ResultReviewRenderer
         .demographics { color: var(--ink-soft); font-size: .92rem; display: flex; flex-wrap: wrap;
                         align-items: baseline; column-gap: .35rem; row-gap: .15rem; }
         .demo-sep { color: var(--ink-muted); }
-        .chart-tabs { display: flex; gap: .25rem; margin-top: 1rem; border-bottom: 1px solid var(--rule); }
-        .chart-tab { padding: .55rem .9rem; font-size: .92rem; color: var(--ink-soft);
-                     text-decoration: none; border-radius: 8px 8px 0 0; border-bottom: 2px solid transparent;
-                     transition: color .15s ease, border-color .15s ease; }
-        .chart-tab:hover { color: var(--ink); }
-        .chart-tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--info); }
         .banner { background: var(--warn-soft); border: 1px solid #f0c46a; padding: .65rem .9rem;
                   border-radius: 8px; max-width: 70ch; margin: 1.25rem auto; color: var(--warn); }
 
