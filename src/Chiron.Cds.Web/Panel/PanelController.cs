@@ -27,6 +27,7 @@ public sealed class PanelController : ControllerBase
     private readonly OrderEntryService _orders;
     private readonly NoteEntryService _notes;
     private readonly EncounterCloseService _signoff;
+    private readonly ServiceRequestService _serviceRequests;
     private readonly ITokenStore _tokens;
 
     public PanelController(
@@ -36,6 +37,7 @@ public sealed class PanelController : ControllerBase
         OrderEntryService orders,
         NoteEntryService notes,
         EncounterCloseService signoff,
+        ServiceRequestService serviceRequests,
         ITokenStore tokens)
     {
         _panel = panel;
@@ -44,7 +46,68 @@ public sealed class PanelController : ControllerBase
         _orders = orders;
         _notes = notes;
         _signoff = signoff;
+        _serviceRequests = serviceRequests;
         _tokens = tokens;
+    }
+
+    [HttpGet("patient/{id}/orders/labs")]
+    public Task<IActionResult> LabOrdersForm(string id, CancellationToken ct) =>
+        RenderServiceRequestForm(id, ServiceRequestCategory.Laboratory, ServiceRequestDraft.Empty,
+            ServiceRequestStatus.Empty, message: null, writtenId: null, ct);
+
+    [HttpPost("patient/{id}/orders/labs")]
+    public Task<IActionResult> LabOrdersSubmit(
+        string id, [FromForm] ServiceRequestForm form, CancellationToken ct) =>
+        SubmitServiceRequest(id, ServiceRequestCategory.Laboratory, form, ct);
+
+    [HttpGet("patient/{id}/orders/imaging")]
+    public Task<IActionResult> ImagingOrdersForm(string id, CancellationToken ct) =>
+        RenderServiceRequestForm(id, ServiceRequestCategory.Imaging, ServiceRequestDraft.Empty,
+            ServiceRequestStatus.Empty, message: null, writtenId: null, ct);
+
+    [HttpPost("patient/{id}/orders/imaging")]
+    public Task<IActionResult> ImagingOrdersSubmit(
+        string id, [FromForm] ServiceRequestForm form, CancellationToken ct) =>
+        SubmitServiceRequest(id, ServiceRequestCategory.Imaging, form, ct);
+
+    private async Task<IActionResult> RenderServiceRequestForm(
+        string id, ServiceRequestCategory category, ServiceRequestDraft draft,
+        ServiceRequestStatus status, string? message, string? writtenId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        var entry = await _panel.GetPatientAsync(id, ct).ConfigureAwait(false);
+        var page = await _serviceRequests.GetForPatientAsync(id, category, ct).ConfigureAwait(false);
+        var view = new ServiceRequestView(
+            PatientId: id,
+            PatientDisplayName: entry?.DisplayName ?? $"Patient {id}",
+            PatientSubline: BuildPatientSubline(entry),
+            Category: category,
+            Draft: draft,
+            History: page.History,
+            Status: status,
+            Message: message,
+            PageError: page.Error,
+            WrittenId: writtenId);
+        return Content(
+            ServiceRequestRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "orders")),
+            MediaTypeNames.Text.Html);
+    }
+
+    private async Task<IActionResult> SubmitServiceRequest(
+        string id, ServiceRequestCategory category, ServiceRequestForm form, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentNullException.ThrowIfNull(form);
+        var draft = form.ToDraft();
+        var accessToken = ReadSessionToken();
+        var write = await _serviceRequests.SignAsync(id, draft, category, accessToken, ct).ConfigureAwait(false);
+        var (status, message, writtenId) = write.Status switch
+        {
+            ServiceRequestWriteStatus.Ok => (ServiceRequestStatus.SignedOk, (string?)null, write.WrittenId),
+            ServiceRequestWriteStatus.NotAuthorised => (ServiceRequestStatus.NotAuthorised, (string?)null, (string?)null),
+            _ => (ServiceRequestStatus.Failed, write.Message, (string?)null),
+        };
+        return await RenderServiceRequestForm(id, category, draft, status, message, writtenId, ct).ConfigureAwait(false);
     }
 
     [HttpGet("patient/{id}/signoff")]
@@ -413,6 +476,22 @@ public sealed class PanelController : ControllerBase
     public sealed class SignOffForm
     {
         public string EncounterId { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Form-binder shape for lab + imaging order POSTs. <see cref="OrderText"/>
+    /// is nullable to bypass ASP.NET's implicit required-string validation —
+    /// the service-side <see cref="ServiceRequestService.SignAsync"/> guard
+    /// returns a friendly "Enter a test or procedure" error instead of a
+    /// raw 400 ModelState response.
+    /// </summary>
+    public sealed class ServiceRequestForm
+    {
+        public string? OrderText { get; set; }
+        public string? Reason { get; set; }
+        public string? Priority { get; set; }
+
+        public ServiceRequestDraft ToDraft() => new(OrderText ?? string.Empty, Reason, Priority);
     }
 
     /// <summary>Form-binder shape for the SOAP note POST.</summary>

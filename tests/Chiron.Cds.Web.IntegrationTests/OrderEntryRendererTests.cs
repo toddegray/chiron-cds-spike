@@ -39,6 +39,17 @@ public class OrderEntryRendererTests
             WrittenId: writtenId);
 
     [Fact]
+    public void Medication_Page_Renders_Order_SubNav_With_Medication_Active()
+    {
+        var html = OrderEntryRenderer.Render(View(), NavBar, Tabs);
+        html.Should().Contain("class=\"order-subnav\"",
+            because: "the medication page carries the same Medication/Labs/Imaging strip as the sibling order sub-pages");
+        html.Should().Contain("href=\"/app/patient/p1/orders\" class=\"active\">Medication</a>");
+        html.Should().Contain("href=\"/app/patient/p1/orders/labs\">Labs</a>");
+        html.Should().Contain("href=\"/app/patient/p1/orders/imaging\">Imaging</a>");
+    }
+
+    [Fact]
     public void Empty_View_Renders_Form_With_Pharmacy_Dropdown_And_Single_Sign_Button()
     {
         var html = OrderEntryRenderer.Render(View(), NavBar, Tabs);

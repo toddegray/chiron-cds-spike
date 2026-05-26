@@ -66,6 +66,7 @@ builder.Services.AddScoped<ResultReviewService>();
 builder.Services.AddScoped<OrderEntryService>();
 builder.Services.AddScoped<NoteEntryService>();
 builder.Services.AddScoped<EncounterCloseService>();
+builder.Services.AddScoped<ServiceRequestService>();
 
 var app = builder.Build();
 

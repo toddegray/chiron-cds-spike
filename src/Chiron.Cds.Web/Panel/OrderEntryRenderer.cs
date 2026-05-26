@@ -29,6 +29,12 @@ internal static class OrderEntryRenderer
         RenderHeader(sb, view, chartTabs);
 
         sb.Append("<main class=\"order-main\">");
+        // Order sub-nav lives outside the status switch so it renders even
+        // on the signed-ok / not-authorised pages — keeps the Medication /
+        // Labs / Imaging strip stable across every order interaction.
+        sb.Append("<div class=\"order-subnav-host\">");
+        OrderSubNav.Render(sb, view.PatientId, OrderSubNavActive.Medication);
+        sb.Append("</div>");
         switch (view.Status)
         {
             case OrderEntryStatus.SignedOk:
@@ -311,6 +317,12 @@ internal static class OrderEntryRenderer
 
         .order-main { max-width:1280px; margin:1.5rem auto 3rem; padding:0 1.5rem;
                       display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:1.5rem; }
+        .order-subnav-host { grid-column: 1 / -1; margin-bottom: .25rem; }
+        .order-subnav { display:flex; gap:.5rem; }
+        .order-subnav a { padding:.35rem .8rem; font-size:.85rem; color:var(--ink-soft); text-decoration:none;
+                          border-radius:999px; border:1px solid var(--rule); background:var(--surface); }
+        .order-subnav a:hover { color:var(--ink); }
+        .order-subnav a.active { color:#fff; background:var(--ink); border-color:var(--ink); font-weight:600; }
         .order-form { display:flex; flex-direction:column; gap:1rem; }
         .form-section { background:var(--surface); border-radius:14px; padding:1rem 1.25rem;
                         box-shadow:0 1px 2px rgba(0,0,0,.04); }
