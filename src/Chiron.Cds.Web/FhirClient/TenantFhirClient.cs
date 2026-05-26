@@ -19,9 +19,19 @@ public sealed class TenantFhirClient : IDisposable
     private readonly HttpClient _http;
 
     public TenantFhirClient(TenantConfig tenant, string? accessToken)
+        : this(tenant, accessToken, new HttpClient { Timeout = TimeSpan.FromSeconds(30) }) { }
+
+    /// <summary>
+    /// Test-only seam. Tests inject a <see cref="HttpClient"/> backed by a
+    /// stub <see cref="HttpMessageHandler"/> so they can assert the wire
+    /// contract (method, path, body) without standing up a real FHIR
+    /// server. Not for production use.
+    /// </summary>
+    internal TenantFhirClient(TenantConfig tenant, string? accessToken, HttpClient http)
     {
         ArgumentNullException.ThrowIfNull(tenant);
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        ArgumentNullException.ThrowIfNull(http);
+        _http = http;
         if (!string.IsNullOrEmpty(accessToken))
             _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
@@ -63,6 +73,25 @@ public sealed class TenantFhirClient : IDisposable
             ?? throw new InvalidOperationException(
                 $"FHIR server returned a null body when creating {typeof(TResource).Name}.");
         return created;
+    }
+
+    /// <summary>
+    /// Update an existing resource by id (FHIR <c>update</c>: PUT
+    /// <c>/{ResourceType}/{id}</c>). The supplied resource must carry the
+    /// id of an existing server-side record; otherwise behaviour depends on
+    /// the server's update-create policy and is unsafe for our use case.
+    /// </summary>
+    public async System.Threading.Tasks.Task<TResource> UpdateAsync<TResource>(TResource resource, CancellationToken ct)
+        where TResource : Resource, new()
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        if (string.IsNullOrEmpty(resource.Id))
+            throw new InvalidOperationException(
+                $"Update target {typeof(TResource).Name} must have a non-empty Id.");
+        var updated = await _client.UpdateAsync(resource, ct: ct).ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                $"FHIR server returned a null body when updating {typeof(TResource).Name}/{resource.Id}.");
+        return updated;
     }
 
     public void Dispose()

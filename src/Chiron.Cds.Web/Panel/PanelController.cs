@@ -26,6 +26,7 @@ public sealed class PanelController : ControllerBase
     private readonly ResultReviewService _results;
     private readonly OrderEntryService _orders;
     private readonly NoteEntryService _notes;
+    private readonly EncounterCloseService _signoff;
     private readonly ITokenStore _tokens;
 
     public PanelController(
@@ -34,6 +35,7 @@ public sealed class PanelController : ControllerBase
         ResultReviewService results,
         OrderEntryService orders,
         NoteEntryService notes,
+        EncounterCloseService signoff,
         ITokenStore tokens)
     {
         _panel = panel;
@@ -41,8 +43,63 @@ public sealed class PanelController : ControllerBase
         _results = results;
         _orders = orders;
         _notes = notes;
+        _signoff = signoff;
         _tokens = tokens;
     }
+
+    [HttpGet("patient/{id}/signoff")]
+    public async Task<IActionResult> SignOff(string id, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        var entry = await _panel.GetPatientAsync(id, ct).ConfigureAwait(false);
+        var page = await _signoff.GetForPatientAsync(id, ct).ConfigureAwait(false);
+        var view = BuildSignOffView(id, entry, page, SignOffStatus.Empty, message: null, writtenId: null);
+        return Content(
+            EncounterCloseRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "signoff")),
+            MediaTypeNames.Text.Html);
+    }
+
+    [HttpPost("patient/{id}/signoff")]
+    public async Task<IActionResult> SignOffSubmit(
+        string id,
+        [FromForm] SignOffForm form,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentNullException.ThrowIfNull(form);
+        if (string.IsNullOrWhiteSpace(form.EncounterId))
+            return BadRequest("Missing encounter id.");
+
+        var accessToken = ReadSessionToken();
+        var write = await _signoff.CloseAsync(id, form.EncounterId, accessToken, ct).ConfigureAwait(false);
+
+        var entry = await _panel.GetPatientAsync(id, ct).ConfigureAwait(false);
+        var page = await _signoff.GetForPatientAsync(id, ct).ConfigureAwait(false);
+        var (status, message, writtenId) = write.Status switch
+        {
+            EncounterCloseStatus.Ok => (SignOffStatus.ClosedOk, (string?)null, write.UpdatedId),
+            EncounterCloseStatus.NotAuthorised => (SignOffStatus.NotAuthorised, (string?)null, (string?)null),
+            EncounterCloseStatus.AlreadyClosed => (SignOffStatus.AlreadyClosed,
+                "That encounter is already marked finished — nothing to update.", (string?)null),
+            _ => (SignOffStatus.Failed, write.Message, (string?)null),
+        };
+        var view = BuildSignOffView(id, entry, page, status, message, writtenId);
+        return Content(
+            EncounterCloseRenderer.Render(view, NavBar(), ChartTabs(id, activeTab: "signoff")),
+            MediaTypeNames.Text.Html);
+    }
+
+    private SignOffView BuildSignOffView(
+        string id, PanelEntry? entry, SignOffPageData page,
+        SignOffStatus status, string? message, string? writtenId) => new(
+            PatientId: id,
+            PatientDisplayName: entry?.DisplayName ?? $"Patient {id}",
+            PatientSubline: BuildPatientSubline(entry),
+            Encounters: page.Encounters,
+            Status: status,
+            Message: message,
+            PageError: page.Error,
+            WrittenId: writtenId);
 
     [HttpGet("patient/{id}/notes")]
     public async Task<IActionResult> NotesForm(string id, CancellationToken ct)
@@ -294,7 +351,7 @@ public sealed class PanelController : ControllerBase
             AlertCount: e.Cards.Count);
     }
 
-    /// <summary>Per-patient tabs strip — Visit brief / Results / Orders / Notes.</summary>
+    /// <summary>Per-patient tabs strip: Visit brief / Results / Orders / Notes / Sign off.</summary>
     private static IReadOnlyList<ChartTab> ChartTabs(string patientId, string activeTab)
     {
         var escaped = Uri.EscapeDataString(patientId);
@@ -304,6 +361,7 @@ public sealed class PanelController : ControllerBase
             new ChartTab("Results", $"/app/patient/{escaped}/results", activeTab == "results"),
             new ChartTab("Orders", $"/app/patient/{escaped}/orders", activeTab == "orders"),
             new ChartTab("Notes", $"/app/patient/{escaped}/notes", activeTab == "notes"),
+            new ChartTab("Sign off", $"/app/patient/{escaped}/signoff", activeTab == "signoff"),
         };
     }
 
@@ -349,6 +407,12 @@ public sealed class PanelController : ControllerBase
                 SubstitutionAllowed: SubstitutionAllowed,
                 NoteToPharmacist: NoteToPharmacist);
         }
+    }
+
+    /// <summary>Form-binder shape for the sign-off POST.</summary>
+    public sealed class SignOffForm
+    {
+        public string EncounterId { get; set; } = string.Empty;
     }
 
     /// <summary>Form-binder shape for the SOAP note POST.</summary>
