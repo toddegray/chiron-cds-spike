@@ -22,75 +22,137 @@ public class PatientSearchService
     // than the full 30 s HttpClient timeout the dev exception page rendered.
     private static readonly TimeSpan SearchTimeout = TimeSpan.FromSeconds(12);
 
-    private readonly TenantRegistry _tenants;
+    private readonly FhirReadConnection _connection;
     private readonly ILogger<PatientSearchService> _log;
 
-    public PatientSearchService(TenantRegistry tenants, ILogger<PatientSearchService> log)
+    public PatientSearchService(FhirReadConnection connection, ILogger<PatientSearchService> log)
     {
-        _tenants = tenants;
+        _connection = connection;
         _log = log;
     }
 
-    public virtual async Task<PatientSearchResult> SearchAsync(string query, CancellationToken ct)
+    public virtual async Task<PatientSearchResult> SearchAsync(PatientSearchCriteria criteria, CancellationToken ct)
     {
-        var trimmed = query?.Trim() ?? string.Empty;
-        if (trimmed.Length == 0) return PatientSearchResult.Empty;
-        if (trimmed.Length < MinQueryLength)
-            return new PatientSearchResult(
-                Array.Empty<PatientSearchHit>(),
-                Warning: $"Type at least {MinQueryLength} characters — a single-letter search times out on most FHIR servers.");
+        ArgumentNullException.ThrowIfNull(criteria);
+        if (criteria.IsEmpty) return PatientSearchResult.Empty;
 
-        var tenant = _tenants.Default.AsOpen();
+        var connection = await _connection.ResolveAsync(ct).ConfigureAwait(false);
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(SearchTimeout);
 
         try
         {
-            var bundle = await ExecuteSearchAsync(tenant, trimmed, MaxResults, timeoutCts.Token)
-                .ConfigureAwait(false);
-            if (bundle?.Entry is null) return PatientSearchResult.Empty;
-            var hits = bundle.Entry
-                .Select(e => e.Resource)
-                .OfType<Patient>()
-                .Take(MaxResults)
-                .Select(ToHit)
-                .ToArray();
-            return new PatientSearchResult(hits, Warning: null);
+            return await RunStrategyAsync(criteria, connection, timeoutCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            _log.LogWarning("Patient search for {Query} timed out after {Seconds}s.", trimmed, SearchTimeout.TotalSeconds);
-            return new PatientSearchResult(
-                Array.Empty<PatientSearchHit>(),
-                Warning: "Search timed out. Try a more specific query (e.g. a full last name).");
+            _log.LogWarning("Patient search timed out after {Seconds}s.", SearchTimeout.TotalSeconds);
+            return Warn("Search timed out. Try a more specific query.");
         }
         catch (Exception ex) when (ex is Hl7.Fhir.Rest.FhirOperationException or HttpRequestException)
         {
-            _log.LogWarning(ex, "Patient search failed for query {Query}.", trimmed);
-            return new PatientSearchResult(
-                Array.Empty<PatientSearchHit>(),
-                Warning: "Search failed — the FHIR endpoint returned an error. Check the connected tenant and try again.");
+            _log.LogWarning(ex, "Patient search failed.");
+            return Warn("Search failed — the FHIR endpoint returned an error. Check the connected tenant and try again.");
         }
     }
 
-    /// <summary>
-    /// Issue the FHIR Patient search. Pass the raw query through to Firely —
-    /// its query builder URL-encodes internally; pre-escaping would
-    /// double-encode (an apostrophe would travel as %2527 and silently
-    /// never match). Exposed as virtual so tests can simulate timeouts and
-    /// transport errors without standing up a real FHIR server.
-    /// </summary>
-    protected virtual async Task<Bundle?> ExecuteSearchAsync(
-        TenantConfig tenant, string query, int maxResults, CancellationToken ct)
+    // Pick the lookup strategy by precedence: MRN (most specific) → encounter →
+    // name + date of birth. The sandbox rejects a bare name search, so a name
+    // query requires a date of birth alongside it.
+    private async Task<PatientSearchResult> RunStrategyAsync(
+        PatientSearchCriteria criteria, FhirConnection connection, CancellationToken ct)
     {
-        using var client = new TenantFhirClient(tenant, accessToken: null);
-        return await client.SearchAsync<Patient>(
-            new[] { $"name={query}", $"_count={maxResults}" }, ct)
-            .ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(criteria.Mrn))
+        {
+            var bundle = await ExecutePatientSearchAsync(connection.Tenant, connection.AccessToken,
+                new[] { $"identifier={criteria.Mrn.Trim()}", $"_count={MaxResults}" }, ct).ConfigureAwait(false);
+            return ToResult(bundle, connection.Tenant.MrnSystem);
+        }
+
+        if (!string.IsNullOrWhiteSpace(criteria.EncounterId))
+        {
+            var patient = await ResolveEncounterPatientAsync(
+                connection.Tenant, connection.AccessToken, criteria.EncounterId.Trim(), ct).ConfigureAwait(false);
+            return patient is null
+                ? Warn("No patient found for that encounter id.")
+                : new PatientSearchResult(new[] { ToHit(patient, connection.Tenant.MrnSystem) }, Warning: null);
+        }
+
+        var name = criteria.Name?.Trim() ?? string.Empty;
+        if (name.Length < MinQueryLength)
+            return Warn($"Type at least {MinQueryLength} characters of a name, or use the MRN / encounter id field.");
+        if (string.IsNullOrWhiteSpace(criteria.BirthDate))
+            return Warn("Add a date of birth — the sandbox requires it alongside a name search.");
+
+        var (family, given) = SplitName(name);
+        var fhir = new List<string> { $"family={family}", $"birthdate={criteria.BirthDate.Trim()}" };
+        if (!string.IsNullOrEmpty(given)) fhir.Add($"given={given}");
+        fhir.Add($"_count={MaxResults}");
+        return ToResult(await ExecutePatientSearchAsync(
+            connection.Tenant, connection.AccessToken, fhir.ToArray(), ct).ConfigureAwait(false), connection.Tenant.MrnSystem);
+    }
+
+    /// <summary>Split a free-text name into (family, given). "Lopez, Camila" and "Camila Lopez" both yield family=Lopez.</summary>
+    internal static (string Family, string? Given) SplitName(string name)
+    {
+        if (name.Contains(','))
+        {
+            var parts = name.Split(',', 2);
+            var given = parts.Length > 1 ? parts[1].Trim() : null;
+            return (parts[0].Trim(), string.IsNullOrEmpty(given) ? null : given);
+        }
+        var tokens = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return tokens.Length >= 2
+            ? (tokens[^1], string.Join(' ', tokens[..^1]))
+            : (name, null);
+    }
+
+    private static PatientSearchResult ToResult(Bundle? bundle, string? mrnSystem)
+    {
+        if (bundle?.Entry is null) return PatientSearchResult.Empty;
+        var hits = bundle.Entry
+            .Select(e => e.Resource)
+            .OfType<Patient>()
+            .Take(MaxResults)
+            .Select(p => ToHit(p, mrnSystem))
+            .ToArray();
+        return new PatientSearchResult(hits, Warning: null);
+    }
+
+    private static PatientSearchResult Warn(string message) =>
+        new(Array.Empty<PatientSearchHit>(), message);
+
+    /// <summary>
+    /// Issue a FHIR Patient search. Firely URL-encodes the criteria internally;
+    /// pre-escaping would double-encode. Virtual so tests can simulate timeouts
+    /// and transport errors without a real FHIR server.
+    /// </summary>
+    protected virtual async Task<Bundle?> ExecutePatientSearchAsync(
+        TenantConfig tenant, string? accessToken, string[] criteria, CancellationToken ct)
+    {
+        using var client = new TenantFhirClient(tenant, accessToken);
+        return await client.SearchAsync<Patient>(criteria, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Resolve the patient behind an encounter id: read the Encounter, then its
+    /// subject Patient. Virtual so tests can stub the two reads.
+    /// </summary>
+    protected virtual async Task<Patient?> ResolveEncounterPatientAsync(
+        TenantConfig tenant, string? accessToken, string encounterId, CancellationToken ct)
+    {
+        using var client = new TenantFhirClient(tenant, accessToken);
+        var encounter = await client.ReadAsync<Encounter>(encounterId, ct).ConfigureAwait(false);
+        var subject = encounter?.Subject?.Reference;
+        if (string.IsNullOrEmpty(subject)) return null;
+        var patientId = subject.Split('/')[^1];
+        return string.IsNullOrEmpty(patientId)
+            ? null
+            : await client.ReadAsync<Patient>(patientId, ct).ConfigureAwait(false);
     }
 
     /// <summary>Project a FHIR <see cref="Patient"/> into the search-hit DTO.</summary>
-    internal static PatientSearchHit ToHit(Patient p)
+    internal static PatientSearchHit ToHit(Patient p, string? mrnSystem)
     {
         var name = p.Name?.FirstOrDefault();
         var display = name?.Text;
@@ -105,15 +167,28 @@ public class PatientSearchService
             PatientId: p.Id ?? string.Empty,
             DisplayName: string.IsNullOrWhiteSpace(display) ? $"Patient {p.Id}" : display,
             Gender: p.Gender?.ToString() ?? string.Empty,
-            BirthDate: p.BirthDate ?? string.Empty);
+            BirthDate: p.BirthDate ?? string.Empty,
+            Mrn: PatientMrn.Extract(p, mrnSystem));
     }
+}
+
+/// <summary>
+/// Inputs to a patient lookup. Any subset may be filled; the service picks a
+/// strategy by precedence (MRN → encounter id → name + date of birth).
+/// </summary>
+public sealed record PatientSearchCriteria(string? Name, string? BirthDate, string? Mrn, string? EncounterId)
+{
+    public bool IsEmpty =>
+        string.IsNullOrWhiteSpace(Name) && string.IsNullOrWhiteSpace(BirthDate)
+        && string.IsNullOrWhiteSpace(Mrn) && string.IsNullOrWhiteSpace(EncounterId);
 }
 
 public sealed record PatientSearchHit(
     string PatientId,
     string DisplayName,
     string Gender,
-    string BirthDate);
+    string BirthDate,
+    string? Mrn = null);
 
 /// <summary>
 /// Result of a <see cref="PatientSearchService.SearchAsync"/> call. The

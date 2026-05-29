@@ -134,6 +134,18 @@ public class IdTokenValidatorTests
     }
 
     [Fact]
+    public async Task Issuer_With_Trailing_Slash_Is_Accepted()
+    {
+        // Cerner's discovery `issuer` omits the trailing slash but its
+        // id_token `iss` claim includes one. The validator must treat the
+        // two forms as equivalent or every real Cerner launch fails here.
+        var (validator, rsa, kid) = BuildValidator();
+        var token = BuildToken(rsa, kid, audience: ClientId, issuer: Issuer + "/");
+        var result = await validator.ValidateAsync(token, BuildTenant(), CancellationToken.None);
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Wrong_Audience_Is_Rejected()
     {
         var (validator, rsa, kid) = BuildValidator();

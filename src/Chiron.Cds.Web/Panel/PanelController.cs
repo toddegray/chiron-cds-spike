@@ -351,13 +351,19 @@ public sealed class PanelController : ControllerBase
     }
 
     [HttpGet("search")]
-    public async Task<IActionResult> Search([FromQuery] string? q, CancellationToken ct)
+    public async Task<IActionResult> Search(
+        [FromQuery] string? name,
+        [FromQuery] string? dob,
+        [FromQuery] string? mrn,
+        [FromQuery] string? encounter,
+        CancellationToken ct)
     {
-        var result = string.IsNullOrWhiteSpace(q)
+        var criteria = new PatientSearchCriteria(name, dob, mrn, encounter);
+        var result = criteria.IsEmpty
             ? PatientSearchResult.Empty
-            : await _search.SearchAsync(q, ct).ConfigureAwait(false);
+            : await _search.SearchAsync(criteria, ct).ConfigureAwait(false);
         var html = PatientSearchRenderer.Render(
-            query: q ?? string.Empty,
+            criteria: criteria,
             hits: result.Hits,
             warning: result.Warning,
             navBar: NavBar(),

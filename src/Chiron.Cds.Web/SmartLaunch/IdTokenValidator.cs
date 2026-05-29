@@ -57,10 +57,14 @@ public sealed class IdTokenValidator
 
         var keys = await GetJwksAsync(smart.JwksUri, ct).ConfigureAwait(false);
 
+        // Cerner's discovery `issuer` omits the trailing slash but its
+        // id_token `iss` claim includes one. Accept both forms so the
+        // exact-string issuer match doesn't fail on that single character.
+        var issuer = (smart.Issuer ?? tenant.FhirBaseUrl.AbsoluteUri).TrimEnd('/');
         var parameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidIssuer = smart.Issuer ?? tenant.FhirBaseUrl.AbsoluteUri.TrimEnd('/'),
+            ValidIssuers = new[] { issuer, issuer + "/" },
             ValidateAudience = true,
             ValidAudience = tenant.ClientId,
             ValidateLifetime = true,

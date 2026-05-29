@@ -94,4 +94,17 @@ public class CdsHooksDiscoveryTests : IClassFixture<WebApplicationFactory<Progra
         var resp = await client.GetAsync("/health");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
     }
+
+    [Fact]
+    public async Task Root_Redirects_To_Panel()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+        });
+        var resp = await client.GetAsync("/");
+        resp.StatusCode.Should().Be(HttpStatusCode.Found);
+        resp.Headers.Location!.OriginalString.Should().Be("/app/panel",
+            because: "the bare root has no content of its own and sends the user to the worklist");
+    }
 }

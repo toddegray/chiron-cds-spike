@@ -13,20 +13,16 @@ using ReasoningEngine = Chiron.Cds.Engine.Engine;
 namespace Chiron.Cds.Web.Panel;
 
 /// <summary>
-/// Backs the replacement-mode panel view: pulls each configured patient's
-/// chart from the open FHIR endpoint, runs the engine, and returns the
-/// data needed to render the worklist + the per-patient Visit Brief.
+/// Backs the panel view: for the connection resolved by
+/// <see cref="FhirReadConnection"/> — the authenticated backend tenant when
+/// configured, otherwise the open (unauthenticated) endpoint — pulls each
+/// configured patient's chart, runs the engine, and returns the data needed to
+/// render the worklist + the per-patient Visit Brief.
 /// </summary>
-/// <remarks>
-/// Once Cerner provisions the authenticated sandbox account the same logic
-/// works against the authenticated endpoint with a SMART session — only the
-/// tenant URL + bearer token change. Until then the open sandbox is the
-/// closest stand-in to a real "doctor's panel" without inventing chart data.
-/// </remarks>
 public class PanelService
 {
     private readonly PanelOptions _options;
-    private readonly TenantRegistry _tenants;
+    private readonly FhirReadConnection _connection;
     private readonly PatientChartFetcher _fetcher;
     private readonly FhirToFactMapper _factMapper;
     private readonly AlertToCdsCardMapper _cardMapper;
@@ -35,7 +31,7 @@ public class PanelService
 
     public PanelService(
         IOptions<PanelOptions> options,
-        TenantRegistry tenants,
+        FhirReadConnection connection,
         PatientChartFetcher fetcher,
         FhirToFactMapper factMapper,
         AlertToCdsCardMapper cardMapper,
@@ -44,7 +40,7 @@ public class PanelService
     {
         ArgumentNullException.ThrowIfNull(options);
         _options = options.Value;
-        _tenants = tenants;
+        _connection = connection;
         _fetcher = fetcher;
         _factMapper = factMapper;
         _cardMapper = cardMapper;
@@ -62,8 +58,8 @@ public class PanelService
         var ids = _options.Patients.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToArray();
         if (ids.Length == 0) return Array.Empty<PanelEntry>();
 
-        var tenant = OpenTenant();
-        var tasks = ids.Select(id => EvaluatePatientAsync(tenant, id, ct)).ToArray();
+        var connection = await _connection.ResolveAsync(ct).ConfigureAwait(false);
+        var tasks = ids.Select(id => EvaluatePatientAsync(connection, id, ct)).ToArray();
         return await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
@@ -71,17 +67,17 @@ public class PanelService
     public virtual async Task<PanelEntry?> GetPatientAsync(string patientId, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(patientId);
-        var tenant = OpenTenant();
-        return await EvaluatePatientAsync(tenant, patientId, ct).ConfigureAwait(false);
+        var connection = await _connection.ResolveAsync(ct).ConfigureAwait(false);
+        return await EvaluatePatientAsync(connection, patientId, ct).ConfigureAwait(false);
     }
 
     private async Task<PanelEntry> EvaluatePatientAsync(
-        TenantConfig tenant, string patientId, CancellationToken ct)
+        FhirConnection connection, string patientId, CancellationToken ct)
     {
         try
         {
             var chart = await _fetcher.FetchAsync(
-                tenant, accessToken: string.Empty, patientId, encounterId: null, ct)
+                connection.Tenant, connection.AccessToken ?? string.Empty, patientId, encounterId: null, ct)
                 .ConfigureAwait(false);
             var inputs = _factMapper.Project(chart);
             var result = _engine.Evaluate(
@@ -94,7 +90,7 @@ public class PanelService
                 DisplayName: ChartName(chart, patientId),
                 AgeSex: PatientHeader.FormatAgeSex(inputs.Patient.AgeYears, inputs.Patient.Sex),
                 DateOfBirth: chart.Patient.BirthDate,
-                Mrn: patientId,
+                Mrn: PatientMrn.Extract(chart.Patient, connection.Tenant.MrnSystem),
                 Inputs: inputs,
                 Cards: cards,
                 Error: null);
@@ -114,8 +110,6 @@ public class PanelService
                 Error: SummariseError(ex));
         }
     }
-
-    private TenantConfig OpenTenant() => _tenants.Default.AsOpen();
 
     /// <summary>Compose a display name from the FHIR patient name, falling back to <c>"Patient {id}"</c>.</summary>
     internal static string ChartName(FhirPatient patient, string fallbackId)

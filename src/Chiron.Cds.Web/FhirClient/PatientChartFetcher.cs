@@ -10,7 +10,7 @@ namespace Chiron.Cds.Web.FhirClient;
 /// laboratory Observations + active MedicationRequests + optional Encounter)
 /// in parallel and assembles a <see cref="PatientChart"/>.
 /// </summary>
-public sealed class PatientChartFetcher
+public class PatientChartFetcher
 {
     /// <summary>LOINC codes the engine's rules look at by name.</summary>
     public static readonly IReadOnlyDictionary<string, string> LabsByLoinc = new Dictionary<string, string>
@@ -28,7 +28,7 @@ public sealed class PatientChartFetcher
         _log = log;
     }
 
-    public async Task<PatientChart> FetchAsync(
+    public virtual async Task<PatientChart> FetchAsync(
         TenantConfig tenant,
         string accessToken,
         string patientId,

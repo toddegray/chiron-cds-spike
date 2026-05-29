@@ -6,6 +6,7 @@ using ReasoningEngine = Chiron.Cds.Engine.Engine;
 using Chiron.Cds.Engine;
 using Chiron.Cds.Web.FhirClient;
 using Chiron.Cds.Web.Mappers;
+using Chiron.Cds.Web.Panel;
 using Chiron.Cds.Web.Tenancy;
 using Microsoft.AspNetCore.Mvc;
 
@@ -55,6 +56,7 @@ public sealed class AppController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Index(
         [FromQuery] string session,
+        [FromQuery] string? patient,
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(session))
@@ -64,24 +66,30 @@ public sealed class AppController : ControllerBase
         if (sess is null)
             return Content(RenderLandingHtml("Session not found or expired."), MediaTypeNames.Text.Html);
 
-        if (string.IsNullOrEmpty(sess.PatientId))
+        // A provider / user-scoped launch returns a token with no patient
+        // context, so the clinician selects one via ?patient=<id>. A patient
+        // bound to the launch token always wins over the query parameter.
+        var patientId = !string.IsNullOrEmpty(sess.PatientId) ? sess.PatientId : patient;
+        if (string.IsNullOrEmpty(patientId))
             return Content(RenderLandingHtml(
-                "SMART session has no patient context. Redo the launch and answer 'Yes' " +
-                "to 'Does your application require a patient?' so Cerner binds a patient to the launch token. " +
+                "SMART session has no patient context — append ?patient=<id> to choose one. " +
+                "(A user-scoped provider launch returns no patient.) " +
                 "Granted scopes: " + string.Join(", ", sess.GrantedScopes)), MediaTypeNames.Text.Html);
+
+        var resolved = sess.PatientId == patientId ? sess : sess with { PatientId = patientId };
 
         try
         {
-            var (cards, _, header) = await EvaluateAsync(sess, ct).ConfigureAwait(false);
-            return Content(RenderAlertsHtml(sess, cards, header), MediaTypeNames.Text.Html);
+            var (cards, _, header) = await EvaluateAsync(resolved, ct).ConfigureAwait(false);
+            return Content(RenderAlertsHtml(resolved, cards, header), MediaTypeNames.Text.Html);
         }
         catch (Hl7.Fhir.Rest.FhirOperationException ex)
         {
             var diag = $"FHIR call failed with HTTP {(int)ex.Status} ({ex.Status}). "
-                + $"Patient: {sess.PatientId}. Tenant: {sess.TenantId}. "
-                + $"Granted scopes from token response: [{string.Join(", ", sess.GrantedScopes.OrderBy(s => s, StringComparer.Ordinal))}]. "
+                + $"Patient: {resolved.PatientId}. Tenant: {resolved.TenantId}. "
+                + $"Granted scopes from token response: [{string.Join(", ", resolved.GrantedScopes.OrderBy(s => s, StringComparer.Ordinal))}]. "
                 + $"Body: {ex.Message}";
-            _log.LogWarning(ex, "FHIR fetch failed for session {Session}.", sess.SessionId);
+            _log.LogWarning(ex, "FHIR fetch failed for session {Session}.", resolved.SessionId);
             return Content(RenderLandingHtml(diag), MediaTypeNames.Text.Html);
         }
     }
@@ -143,7 +151,11 @@ public sealed class AppController : ControllerBase
             cards.Add(_cardMapper.Map(alert));
         }
 
-        var header = PatientHeader.From(inputs, displayName: $"Patient {sess.PatientId}");
+        var header = PatientHeader.From(
+            inputs,
+            displayName: PanelService.ChartName(chart.Patient, sess.PatientId),
+            dateOfBirth: chart.Patient.BirthDate,
+            mrn: PatientMrn.Extract(chart.Patient, tenant.MrnSystem));
         _log.LogInformation("Evaluated session {Session}: {Count} alerts.", sess.SessionId, result.Alerts.Count);
         return (cards, result.Alerts, header);
     }

@@ -1,4 +1,5 @@
 using System.Net;
+using Chiron.Cds.Web.FhirClient;
 using Chiron.Cds.Web.Panel;
 using Chiron.Cds.Web.Tenancy;
 using FluentAssertions;
@@ -76,7 +77,7 @@ public class ResultsControllerOfflineTests : IClassFixture<ResultsControllerOffl
             {
                 services.RemoveAll<ResultReviewService>();
                 services.AddScoped<ResultReviewService>(sp => new StubResultReviewService(
-                    sp.GetRequiredService<TenantRegistry>(),
+                    new StubReadConnection(sp.GetRequiredService<TenantRegistry>().Default),
                     NullLogger<ResultReviewService>.Instance));
             });
         }
@@ -84,11 +85,11 @@ public class ResultsControllerOfflineTests : IClassFixture<ResultsControllerOffl
 
     private sealed class StubResultReviewService : ResultReviewService
     {
-        public StubResultReviewService(TenantRegistry tenants, ILogger<ResultReviewService> log)
-            : base(tenants, log) { }
+        public StubResultReviewService(FhirReadConnection connection, ILogger<ResultReviewService> log)
+            : base(connection, log) { }
 
         protected override Task<(Patient? Patient, Bundle? Reports, Bundle? Labs, Bundle? Vitals)>
-            FetchAsync(TenantConfig tenant, string patientId, CancellationToken ct)
+            FetchAsync(TenantConfig tenant, string? accessToken, string patientId, CancellationToken ct)
         {
             if (patientId == "p-bad")
                 throw new FhirOperationException("denied", HttpStatusCode.Forbidden);

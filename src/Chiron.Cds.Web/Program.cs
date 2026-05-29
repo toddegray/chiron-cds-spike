@@ -47,10 +47,15 @@ builder.Services.AddHttpClient<IdTokenValidator>(c =>
 {
     c.Timeout = TimeSpan.FromSeconds(10);
 });
+builder.Services.AddHttpClient<BackendAuthService>(c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(15);
+});
 
 builder.Services.AddSingleton<FhirToFactMapper>();
 builder.Services.AddSingleton<AlertToCdsCardMapper>();
 builder.Services.AddSingleton<PatientChartFetcher>();
+builder.Services.AddScoped<FhirReadConnection>();
 builder.Services.AddSingleton<DiagnosticReportWriter>();
 builder.Services.AddScoped<PatientViewService>();
 
@@ -78,6 +83,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.MapControllers();
 
+app.MapGet("/", () => Results.Redirect("/app/panel"));
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.Run();

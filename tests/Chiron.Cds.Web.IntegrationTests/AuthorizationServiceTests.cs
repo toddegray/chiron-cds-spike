@@ -59,6 +59,51 @@ public class AuthorizationServiceTests
             because: "the id_token-absent branch must bypass JWS validation entirely (no JWKS fetch)");
     }
 
+    [Fact]
+    public async Task BuildAuthorizeUri_Standalone_Swaps_Launch_For_LaunchPatient()
+    {
+        var harness = BuildHarness(includeIdToken: false);
+        var tenant = new TenantConfig(
+            Id: "test", DisplayName: "Test", ClientId: ClientId, ClientSecret: "secret",
+            FhirBaseUrl: new Uri(FhirBase), FhirOpenBaseUrl: null,
+            Scopes: "launch openid fhirUser user/Patient.read");
+
+        var uri = await harness.Service.BuildAuthorizeUriAsync(
+            tenant, launchToken: null, "https://localhost/cb", CancellationToken.None);
+
+        var scope = ScopeOf(uri).Split(' ');
+        scope.Should().Contain("launch/patient");
+        scope.Should().NotContain("launch",
+            because: "a standalone launch replaces bare 'launch' with 'launch/patient'");
+        scope.Should().Contain("user/Patient.read");
+    }
+
+    [Fact]
+    public async Task BuildAuthorizeUri_EhrLaunch_Swaps_LaunchPatient_For_Launch()
+    {
+        var harness = BuildHarness(includeIdToken: false);
+        var tenant = new TenantConfig(
+            Id: "test", DisplayName: "Test", ClientId: ClientId, ClientSecret: "secret",
+            FhirBaseUrl: new Uri(FhirBase), FhirOpenBaseUrl: null,
+            Scopes: "launch/patient openid fhirUser user/Patient.read");
+
+        var uri = await harness.Service.BuildAuthorizeUriAsync(
+            tenant, launchToken: "launch-xyz", "https://localhost/cb", CancellationToken.None);
+
+        var query = QueryOf(uri);
+        query["scope"].Split(' ').Should().Contain("launch");
+        query["scope"].Should().NotContain("launch/patient",
+            because: "an EHR launch (launch token present) uses bare 'launch'");
+        query["launch"].Should().Be("launch-xyz");
+    }
+
+    private static string ScopeOf(Uri uri) => QueryOf(uri)["scope"];
+
+    private static IReadOnlyDictionary<string, string> QueryOf(Uri uri) =>
+        uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Split('=', 2))
+            .ToDictionary(p => Uri.UnescapeDataString(p[0]), p => Uri.UnescapeDataString(p.Length > 1 ? p[1] : ""));
+
     private static Harness BuildHarness(bool includeIdToken)
     {
         var rsa = RSA.Create(2048);

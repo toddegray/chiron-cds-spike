@@ -36,10 +36,17 @@ public sealed class TenantFhirClient : IDisposable
             _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         _client = new FirelyClient(
-            tenant.FhirBaseUrl,
+            EnsureTrailingSlash(tenant.FhirBaseUrl),
             _http,
             new FhirClientSettings { PreferredFormat = ResourceFormat.Json });
     }
+
+    // A FHIR base whose path lacks a trailing slash (e.g. ".../api/FHIR/R4")
+    // loses its last segment when combined with a relative resource path
+    // ("Patient/123") under standard URI rules, yielding ".../api/FHIR/Patient/123"
+    // — a 404. Append the slash so the full base is preserved.
+    private static Uri EnsureTrailingSlash(Uri baseUrl) =>
+        baseUrl.AbsoluteUri.EndsWith('/') ? baseUrl : new Uri(baseUrl.AbsoluteUri + "/");
 
     /// <summary>Read a single resource by id.</summary>
     public System.Threading.Tasks.Task<TResource?> ReadAsync<TResource>(string id, CancellationToken ct)

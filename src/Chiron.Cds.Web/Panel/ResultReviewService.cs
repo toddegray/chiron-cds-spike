@@ -15,19 +15,19 @@ public class ResultReviewService
     /// <summary>How many reports to surface on the page.</summary>
     private const int MaxReports = 30;
 
-    private readonly TenantRegistry _tenants;
+    private readonly FhirReadConnection _connection;
     private readonly ILogger<ResultReviewService> _log;
 
-    public ResultReviewService(TenantRegistry tenants, ILogger<ResultReviewService> log)
+    public ResultReviewService(FhirReadConnection connection, ILogger<ResultReviewService> log)
     {
-        _tenants = tenants;
+        _connection = connection;
         _log = log;
     }
 
     public virtual async Task<ResultReviewData> GetForPatientAsync(string patientId, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(patientId);
-        var tenant = _tenants.Default.AsOpen();
+        var connection = await _connection.ResolveAsync(ct).ConfigureAwait(false);
 
         Patient? patient;
         Bundle? reports;
@@ -35,7 +35,7 @@ public class ResultReviewService
         Bundle? vitals;
         try
         {
-            (patient, reports, labs, vitals) = await FetchAsync(tenant, patientId, ct).ConfigureAwait(false);
+            (patient, reports, labs, vitals) = await FetchAsync(connection.Tenant, connection.AccessToken, patientId, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is Hl7.Fhir.Rest.FhirOperationException or HttpRequestException or TaskCanceledException)
         {
@@ -43,7 +43,8 @@ public class ResultReviewService
             return ResultReviewData.Failure(patientId, SummariseError(ex));
         }
 
-        var demographics = ProjectDemographics(patient, mrn: patientId);
+        var demographics = ProjectDemographics(
+            patient, mrn: PatientMrn.Extract(patient, connection.Tenant.MrnSystem) ?? patientId);
         var reportSummaries = (reports?.Entry ?? Enumerable.Empty<Bundle.EntryComponent>())
             .Select(e => e.Resource).OfType<DiagnosticReport>()
             .Select(ProjectReport)
@@ -69,9 +70,9 @@ public class ResultReviewService
     /// can stub the live network without standing up a real FHIR server.
     /// </summary>
     protected virtual async Task<(Patient? Patient, Bundle? Reports, Bundle? Labs, Bundle? Vitals)>
-        FetchAsync(TenantConfig tenant, string patientId, CancellationToken ct)
+        FetchAsync(TenantConfig tenant, string? accessToken, string patientId, CancellationToken ct)
     {
-        using var client = new TenantFhirClient(tenant, accessToken: null);
+        using var client = new TenantFhirClient(tenant, accessToken);
         var patientTask = client.ReadAsync<Patient>(patientId, ct);
         var reportsTask = client.SearchAsync<DiagnosticReport>(
             new[] { $"patient={patientId}", "_count=30" }, ct);

@@ -42,7 +42,8 @@ public sealed class TenantRegistry
                 ClientSecret: t.ClientSecret,
                 FhirBaseUrl: fhirBase,
                 FhirOpenBaseUrl: fhirOpen,
-                Scopes: t.Scopes);
+                Scopes: t.Scopes,
+                MrnSystem: t.MrnSystem);
 
             _byId[id] = cfg;
             _byFhirBase[Normalize(fhirBase.AbsoluteUri)] = cfg;

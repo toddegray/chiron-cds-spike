@@ -15,6 +15,39 @@ public sealed class ChironOptions
 
     /// <summary>The base URL the app is hosted at (used to construct the SMART redirect URI).</summary>
     public string BaseUrl { get; set; } = "https://localhost:7099";
+
+    /// <summary>
+    /// SMART Backend Services configuration (client_credentials + private_key_jwt).
+    /// Null when the deployment isn't set up for system-to-system FHIR access.
+    /// </summary>
+    public BackendServiceOptions? EpicBackend { get; set; }
+
+    /// <summary>
+    /// PEM-encoded RSA private key whose public half is published at the
+    /// Backend Services app's JWK Set URL. Kept as a flat top-level key
+    /// (sourced from user-secrets) rather than nested under
+    /// <see cref="EpicBackend"/> so it never lands in committed appsettings.
+    /// </summary>
+    public string? EpicBackendPrivateKeyPem { get; set; }
+}
+
+/// <summary>
+/// Non-secret settings for the SMART Backend Services flow. The matching
+/// private key lives in <see cref="ChironOptions.EpicBackendPrivateKeyPem"/>.
+/// </summary>
+public sealed class BackendServiceOptions
+{
+    /// <summary>Tenant whose FHIR base and SMART token endpoint the backend flow targets.</summary>
+    public string TenantId { get; set; } = string.Empty;
+
+    /// <summary>The Backend Systems app's client id (the <c>iss</c>/<c>sub</c> of the client assertion).</summary>
+    public string ClientId { get; set; } = string.Empty;
+
+    /// <summary>JWK <c>kid</c> identifying the signing key in the published JWK Set.</summary>
+    public string KeyId { get; set; } = string.Empty;
+
+    /// <summary>Space-separated <c>system/*</c> scopes requested at the token endpoint.</summary>
+    public string Scopes { get; set; } = string.Empty;
 }
 
 /// <summary>Per-tenant configuration. Mirrors the registration values at the EHR's developer console.</summary>
@@ -34,4 +67,12 @@ public sealed class TenantOptions
 
     /// <summary>Space-separated scope string requested at authorization time.</summary>
     public string Scopes { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Identifier system (OID/URI) under which this EHR exposes the patient MRN.
+    /// EHRs vary: Epic publishes the MRN under an org-specific OID with no
+    /// standard "MR" type coding, so the system must be configured per tenant.
+    /// Null falls back to the standard "MR"-typed identifier.
+    /// </summary>
+    public string? MrnSystem { get; set; }
 }

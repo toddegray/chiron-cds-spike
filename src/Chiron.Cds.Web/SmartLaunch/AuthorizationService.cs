@@ -65,14 +65,23 @@ public sealed class AuthorizationService
             RedirectUri: redirectUri,
             CreatedAt: DateTimeOffset.UtcNow));
 
-        // SMART spec: the "launch" scope pairs with a "launch" parameter.
-        // For standalone launches we must drop "launch" from the scope set,
-        // otherwise some servers (e.g. Cerner) reject with invalid_request.
+        // The launch-context scope must match the launch type: a standalone
+        // launch uses "launch/patient" (the app initiates and the EHR prompts
+        // for patient context), while an EHR launch uses bare "launch" paired
+        // with the launch token. Swap between them rather than only dropping
+        // "launch" — Epic standalone rejects the launch without "launch/patient".
+        var configuredScopes = tenant.Scopes
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
         var effectiveScopes = string.IsNullOrEmpty(launchToken)
-            ? string.Join(' ', tenant.Scopes
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .Where(s => !string.Equals(s, "launch", StringComparison.Ordinal)))
-            : tenant.Scopes;
+            ? string.Join(' ', configuredScopes
+                .Where(s => !string.Equals(s, "launch", StringComparison.Ordinal))
+                .Append("launch/patient")
+                .Distinct(StringComparer.Ordinal))
+            : string.Join(' ', configuredScopes
+                .Where(s => !string.Equals(s, "launch/patient", StringComparison.Ordinal))
+                .Append("launch")
+                .Distinct(StringComparer.Ordinal));
 
         var query = new Dictionary<string, string?>
         {
@@ -130,22 +139,36 @@ public sealed class AuthorizationService
             _log.LogWarning("Token response did not include an id_token for tenant {Tenant}; openid validation skipped.", tenant.Id);
         }
 
-        var session = new SmartSession(
-            SessionId: RandomBase64Url(24),
-            TenantId: tenant.Id,
-            AccessToken: token.AccessToken,
-            RefreshToken: token.RefreshToken,
-            PatientId: token.Patient ?? string.Empty,
-            EncounterId: token.Encounter,
-            IdToken: token.IdToken,
-            ExpiresAt: DateTimeOffset.UtcNow.AddSeconds(Math.Max(token.ExpiresInSeconds - 30, 60)),
-            GrantedScopes: (token.Scope ?? string.Empty)
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .ToArray());
+        var session = CreateSession(
+            tenant.Id, token.AccessToken, token.RefreshToken,
+            token.Patient ?? string.Empty, token.Encounter, token.IdToken,
+            token.ExpiresInSeconds, token.Scope);
 
         _store.SaveSession(session);
         return session;
     }
+
+    /// <summary>
+    /// Build a <see cref="SmartSession"/> from token-response fields. Shared by
+    /// the real callback flow and the dev-only resume-from-token path so the
+    /// session-id, expiry, and scope-split logic stays in one place.
+    /// </summary>
+    internal static SmartSession CreateSession(
+        string tenantId, string accessToken, string? refreshToken,
+        string patientId, string? encounterId, string? idToken,
+        int expiresInSeconds, string? scope) =>
+        new SmartSession(
+            SessionId: RandomBase64Url(24),
+            TenantId: tenantId,
+            AccessToken: accessToken,
+            RefreshToken: refreshToken,
+            PatientId: patientId,
+            EncounterId: encounterId,
+            IdToken: idToken,
+            ExpiresAt: DateTimeOffset.UtcNow.AddSeconds(Math.Max(expiresInSeconds - 30, 60)),
+            GrantedScopes: (scope ?? string.Empty)
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .ToArray());
 
     private async Task<TokenResponse> PostTokenAsync(
         string tokenEndpoint,

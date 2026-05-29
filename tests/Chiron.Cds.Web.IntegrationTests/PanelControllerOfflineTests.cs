@@ -97,7 +97,7 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
     public async Task Search_Renders_Stubbed_Hits()
     {
         using var client = _factory.CreateClient();
-        var resp = await client.GetAsync("/app/search?q=stub");
+        var resp = await client.GetAsync("/app/search?mrn=stub");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
         body.Should().Contain("Stubbed, Patient");
@@ -110,15 +110,15 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
     {
         // Reset the static call-spy first — other tests in this class
         // may have populated it.
-        StubPatientSearchService.LastQuery = null;
+        StubPatientSearchService.LastCriteria = null;
 
         using var client = _factory.CreateClient();
         var resp = await client.GetAsync("/app/search");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
         body.Should().Contain("Start typing");
-        StubPatientSearchService.LastQuery.Should().BeNull(
-            because: "the controller's empty-query short-circuit must not reach the search service");
+        StubPatientSearchService.LastCriteria.Should().BeNull(
+            because: "the controller's empty-form short-circuit must not reach the search service");
     }
 
     public sealed class Factory : WebApplicationFactory<Program>
@@ -130,7 +130,7 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
                 services.RemoveAll<PanelService>();
                 services.AddScoped<PanelService>(sp => new StubPanelService(
                     sp.GetRequiredService<IOptions<PanelOptions>>(),
-                    sp.GetRequiredService<TenantRegistry>(),
+                    sp.GetRequiredService<FhirReadConnection>(),
                     sp.GetRequiredService<PatientChartFetcher>(),
                     sp.GetRequiredService<FhirToFactMapper>(),
                     sp.GetRequiredService<AlertToCdsCardMapper>(),
@@ -139,7 +139,7 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
 
                 services.RemoveAll<PatientSearchService>();
                 services.AddScoped<PatientSearchService>(sp => new StubPatientSearchService(
-                    sp.GetRequiredService<TenantRegistry>(),
+                    sp.GetRequiredService<FhirReadConnection>(),
                     NullLogger<PatientSearchService>.Instance));
             });
         }
@@ -149,13 +149,13 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
     {
         public StubPanelService(
             IOptions<PanelOptions> options,
-            TenantRegistry tenants,
+            FhirReadConnection connection,
             PatientChartFetcher fetcher,
             FhirToFactMapper factMapper,
             AlertToCdsCardMapper cardMapper,
             ReasoningEngine engine,
             ILogger<PanelService> log)
-            : base(options, tenants, fetcher, factMapper, cardMapper, engine, log) { }
+            : base(options, connection, fetcher, factMapper, cardMapper, engine, log) { }
 
         public override Task<IReadOnlyList<PanelEntry>> GetPanelAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<PanelEntry>>(new[]
@@ -191,14 +191,14 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
 
     private sealed class StubPatientSearchService : PatientSearchService
     {
-        public static string? LastQuery;
+        public static PatientSearchCriteria? LastCriteria;
 
-        public StubPatientSearchService(TenantRegistry tenants, ILogger<PatientSearchService> log)
-            : base(tenants, log) { }
+        public StubPatientSearchService(FhirReadConnection connection, ILogger<PatientSearchService> log)
+            : base(connection, log) { }
 
-        public override Task<PatientSearchResult> SearchAsync(string query, CancellationToken ct)
+        public override Task<PatientSearchResult> SearchAsync(PatientSearchCriteria criteria, CancellationToken ct)
         {
-            LastQuery = query;
+            LastCriteria = criteria;
             return Task.FromResult(new PatientSearchResult(
                 Hits: new[] { new PatientSearchHit("s-1", "Stubbed, Patient", "female", "1980-01-01") },
                 Warning: null));

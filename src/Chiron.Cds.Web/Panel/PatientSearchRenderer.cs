@@ -12,12 +12,13 @@ namespace Chiron.Cds.Web.Panel;
 internal static class PatientSearchRenderer
 {
     public static string Render(
-        string query,
+        PatientSearchCriteria criteria,
         IReadOnlyList<PatientSearchHit> hits,
+        string? warning,
         string navBar,
-        string drillBaseUrl,
-        string? warning = null)
+        string drillBaseUrl)
     {
+        ArgumentNullException.ThrowIfNull(criteria);
         ArgumentNullException.ThrowIfNull(hits);
         var sb = new StringBuilder();
         sb.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">");
@@ -29,12 +30,13 @@ internal static class PatientSearchRenderer
 
         sb.Append("<header class=\"page-header\"><div class=\"page-header-inner\">");
         sb.Append("<h1>Find a patient</h1>");
-        sb.Append("<p class=\"subline\">Search the connected FHIR endpoint by name. Click a result to open the Visit Brief.</p>");
+        sb.Append("<p class=\"subline\">Look up a patient by MRN, by name + date of birth, or by encounter id. Fill whichever you have — MRN alone is enough.</p>");
 
         sb.Append("<form method=\"get\" action=\"/app/search\" class=\"search-form\">");
-        sb.Append("<input type=\"search\" name=\"q\" placeholder=\"Last name (e.g. Smith, Jane)\" autofocus minlength=\"2\" value=\"");
-        sb.Append(WebEncode(query));
-        sb.Append("\" />");
+        Field(sb, "mrn", "text", "MRN", criteria.Mrn, autofocus: true);
+        Field(sb, "name", "text", "Name (e.g. Lopez or Camila Lopez)", criteria.Name, autofocus: false);
+        Field(sb, "dob", "date", "Date of birth", criteria.BirthDate, autofocus: false);
+        Field(sb, "encounter", "text", "Encounter id", criteria.EncounterId, autofocus: false);
         sb.Append("<button type=\"submit\">Search</button>");
         sb.Append("</form>");
         if (!string.IsNullOrEmpty(warning))
@@ -44,18 +46,16 @@ internal static class PatientSearchRenderer
         sb.Append("</div></header>");
 
         sb.Append("<main class=\"results\">");
-        if (string.IsNullOrWhiteSpace(query))
+        if (criteria.IsEmpty)
         {
-            sb.Append("<div class=\"hint\">Start typing a last name above. Results come back live from the connected FHIR endpoint — try <em>Smith</em>, <em>Jane</em>, or <em>Doe</em>.</div>");
+            sb.Append("<div class=\"hint\">Start typing above — enter an <em>MRN</em>, a <em>name + date of birth</em>, or an <em>encounter id</em>. Results come back live from the connected FHIR endpoint.</div>");
         }
         else if (hits.Count == 0)
         {
             sb.Append("<div class=\"empty-state\">");
             sb.Append("<div class=\"empty-glyph\">∅</div>");
-            sb.Append("<div class=\"empty-title\">No patients matched <em>");
-            sb.Append(WebEncode(query));
-            sb.Append("</em></div>");
-            sb.Append("<div class=\"empty-detail\">The connected sandbox returned an empty result. Try a more common family name — <em>Smith</em>, <em>Jane</em>, <em>Doe</em> — or check the spelling.</div>");
+            sb.Append("<div class=\"empty-title\">No patients matched</div>");
+            sb.Append("<div class=\"empty-detail\">The connected sandbox returned no results. Double-check the MRN, or pair a name with a date of birth.</div>");
             sb.Append("</div>");
         }
         else
@@ -66,6 +66,14 @@ internal static class PatientSearchRenderer
         }
         sb.Append("</main></body></html>");
         return sb.ToString();
+    }
+
+    private static void Field(StringBuilder sb, string name, string type, string placeholder, string? value, bool autofocus)
+    {
+        sb.Append("<input type=\"").Append(type).Append("\" name=\"").Append(name).Append('"');
+        sb.Append(" placeholder=\"").Append(WebEncode(placeholder)).Append('"');
+        if (autofocus) sb.Append(" autofocus");
+        sb.Append(" value=\"").Append(WebEncode(value ?? string.Empty)).Append("\" />");
     }
 
     private static void RenderRow(StringBuilder sb, PatientSearchHit hit, string drillBaseUrl)
@@ -88,7 +96,10 @@ internal static class PatientSearchRenderer
         }
         sb.Append("</div>");
         sb.Append("</div>");
-        sb.Append("<div class=\"row-id\">").Append(WebEncode(hit.PatientId)).Append("</div>");
+        sb.Append("<div class=\"row-id\">");
+        if (!string.IsNullOrEmpty(hit.Mrn))
+            sb.Append("MRN ").Append(WebEncode(hit.Mrn));
+        sb.Append("</div>");
         sb.Append("<div class=\"row-chevron\">›</div>");
         sb.Append("</a>");
     }
@@ -115,14 +126,14 @@ internal static class PatientSearchRenderer
         h1 { font-size: 1.85rem; letter-spacing: -.02em; font-weight: 700; margin: 0 0 .4rem; }
         .subline { color: var(--ink-soft); margin: 0; font-size: .95rem; max-width: 60ch; }
 
-        .search-form { display: flex; gap: .75rem; margin-top: 1.5rem; }
-        .search-form input[type=search] {
-            flex: 1; padding: .75rem 1rem; font-size: 1rem; border: 1px solid var(--rule);
+        .search-form { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.5rem; }
+        .search-form input {
+            flex: 1 1 180px; min-width: 0; padding: .75rem 1rem; font-size: 1rem; border: 1px solid var(--rule);
             border-radius: 10px; background: #fff; color: var(--ink);
         }
-        .search-form input[type=search]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+        .search-form input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
         .search-form button {
-            padding: 0 1.4rem; font-size: .95rem; font-weight: 600; border: 0; border-radius: 10px;
+            flex: 0 0 auto; padding: 0 1.4rem; font-size: .95rem; font-weight: 600; border: 0; border-radius: 10px;
             background: var(--accent); color: #fff; cursor: pointer; transition: background .15s;
         }
         .search-form button:hover { background: #0c5fb5; }
@@ -149,8 +160,8 @@ internal static class PatientSearchRenderer
         .row:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,.06); }
         .patient-name { font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em; }
         .patient-meta { font-size: .85rem; color: var(--ink-muted); margin-top: .15rem; }
-        .row-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem;
-                  color: var(--ink-muted); text-align: right; }
+        .row-id { font-size: .8rem; color: var(--ink-muted); text-align: right;
+                  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .row-chevron { color: var(--ink-muted); font-size: 1.5rem; text-align: right; }
         .row:hover .row-chevron { color: var(--ink); }
     </style>";

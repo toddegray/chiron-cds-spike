@@ -12,4 +12,5 @@ public sealed record TenantConfig(
     string? ClientSecret,
     Uri FhirBaseUrl,
     Uri? FhirOpenBaseUrl,
-    string Scopes);
+    string Scopes,
+    string? MrnSystem = null);
