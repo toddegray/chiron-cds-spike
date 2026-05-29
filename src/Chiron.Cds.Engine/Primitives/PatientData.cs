@@ -26,11 +26,16 @@ public sealed record Medication(
     string? Route = null,
     bool Active = true);
 
-/// <summary>Engine-side condition / problem-list entry.</summary>
+/// <summary>
+/// Engine-side condition / problem-list entry. <c>RecordedDate</c> (when the
+/// condition was charted) is distinct from <c>Onset</c> (when it began) and is
+/// used to order the problem list when onset is absent.
+/// </summary>
 public sealed record Condition(
     string Name,
     DateTimeOffset? Onset = null,
-    bool Active = true);
+    bool Active = true,
+    DateTimeOffset? RecordedDate = null);
 
 /// <summary>Engine-side allergy / intolerance entry.</summary>
 /// <param name="Substance">Canonical substance name (e.g. "penicillin", "sulfa", "shellfish").</param>

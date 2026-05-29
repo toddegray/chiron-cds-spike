@@ -145,27 +145,45 @@ internal static class EhrChartRenderer
 
     private static void RenderProblems(StringBuilder sb, IReadOnlyList<Condition> conditions)
     {
-        var active = conditions.Where(c => c.Active)
-            .Select(c => PatientHeader.Humanize(c.Name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+        // Collapse duplicate codings of the same problem, then order by date so
+        // the clinician sees what happened and when — most recent first. Onset
+        // is preferred; recorded date is the fallback when onset is absent.
+        var problems = conditions.Where(c => c.Active)
+            .GroupBy(c => PatientHeader.Humanize(c.Name), StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var onset = g.Select(c => c.Onset).FirstOrDefault(o => o is not null);
+                var recorded = g.Select(c => c.RecordedDate).FirstOrDefault(r => r is not null);
+                return (Name: g.Key, Date: onset ?? recorded, Label: ProblemDateLabel(onset, recorded));
+            })
+            .OrderByDescending(p => p.Date ?? DateTimeOffset.MinValue)
+            .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        OpenCard(sb, "Problem List", active.Length);
-        if (active.Length == 0)
+        OpenCard(sb, "Problem List", problems.Length);
+        if (problems.Length == 0)
         {
             EmptyRow(sb, "No active problems on file.");
         }
         else
         {
             sb.Append("<ul class=\"list\">");
-            foreach (var name in active)
+            foreach (var p in problems)
             {
-                sb.Append("<li class=\"list-row\"><span class=\"dot problem\"></span><span class=\"row-text\">")
-                  .Append(Enc(name)).Append("</span><span class=\"chevron\">›</span></li>");
+                sb.Append("<li class=\"list-row\"><span class=\"dot problem\"></span>")
+                  .Append("<span class=\"row-text\">").Append(Enc(p.Name)).Append("</span>");
+                if (p.Label is not null)
+                    sb.Append("<span class=\"row-date\">").Append(Enc(p.Label)).Append("</span>");
+                sb.Append("<span class=\"chevron\">›</span></li>");
             }
             sb.Append("</ul>");
         }
         CloseCard(sb);
     }
+
+    private static string? ProblemDateLabel(DateTimeOffset? onset, DateTimeOffset? recorded) =>
+        onset is { } o ? "Onset " + o.ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture)
+        : recorded is { } r ? "Recorded " + r.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+        : null;
 
     private static void RenderMedications(StringBuilder sb, IReadOnlyList<Medication> meds, string id)
     {
@@ -219,31 +237,65 @@ internal static class EhrChartRenderer
 
     private static void RenderKeyLabs(StringBuilder sb, IReadOnlyList<Lab> labs)
     {
-        OpenCard(sb, "Key Labs", labs.Count);
-        if (labs.Count == 0)
+        // One row per distinct lab showing its most recent value — the only
+        // value worth a textual headline. Labs with history collapse into an
+        // expandable list of every reading by date (no JS; native details).
+        var groups = labs
+            .GroupBy(l => l.Name)
+            .Select(g => (
+                Label: LabLabels.TryGetValue(g.Key, out var l) ? l : PatientHeader.Humanize(g.Key),
+                Series: (IReadOnlyList<Lab>)g.OrderByDescending(x => x.TakenAt ?? DateTimeOffset.MinValue).ToArray()))
+            .OrderBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        OpenCard(sb, "Key Labs", groups.Length);
+        if (groups.Length == 0)
         {
             EmptyRow(sb, "No decision-relevant labs on file. See Labs & Results for the full panel.");
         }
         else
         {
-            sb.Append("<ul class=\"lab-list\">");
-            foreach (var lab in labs)
-            {
-                var label = LabLabels.TryGetValue(lab.Name, out var l) ? l : PatientHeader.Humanize(lab.Name);
-                sb.Append("<li class=\"lab-row\">");
-                sb.Append("<span class=\"lab-name\">").Append(Enc(label)).Append("</span>");
-                sb.Append("<span class=\"lab-value\">").Append(Enc(FormatValue(lab.Value)));
-                if (!string.IsNullOrWhiteSpace(lab.Unit))
-                    sb.Append(" <span class=\"lab-unit\">").Append(Enc(lab.Unit)).Append("</span>");
-                sb.Append("</span>");
-                if (lab.TakenAt is { } when)
-                    sb.Append("<span class=\"lab-when\">").Append(Enc(when.ToString("MM/dd/yyyy"))).Append("</span>");
-                sb.Append("</li>");
-            }
-            sb.Append("</ul>");
+            foreach (var (label, series) in groups) RenderLabGroup(sb, label, series);
             sb.Append("<a class=\"card-foot-link\" href=\"results\">View full results &amp; trends →</a>");
         }
         CloseCard(sb);
+    }
+
+    private static void RenderLabGroup(StringBuilder sb, string label, IReadOnlyList<Lab> series)
+    {
+        var latest = series[0];
+        if (series.Count == 1)
+        {
+            sb.Append("<div class=\"lab-row\">");
+            RenderLabHead(sb, label, latest, readingCount: 1);
+            sb.Append("</div>");
+            return;
+        }
+
+        sb.Append("<details class=\"lab-detail\"><summary class=\"lab-row\">");
+        RenderLabHead(sb, label, latest, readingCount: series.Count);
+        sb.Append("</summary><table class=\"lab-history\">");
+        foreach (var pt in series)
+        {
+            sb.Append("<tr><td class=\"lh-date\">")
+              .Append(Enc(pt.TakenAt is { } w ? w.ToString("MM/dd/yyyy") : "—"))
+              .Append("</td><td class=\"lh-val\">").Append(Enc(FormatValue(pt.Value)));
+            if (!string.IsNullOrWhiteSpace(pt.Unit)) sb.Append(' ').Append(Enc(pt.Unit));
+            sb.Append("</td></tr>");
+        }
+        sb.Append("</table></details>");
+    }
+
+    private static void RenderLabHead(StringBuilder sb, string label, Lab latest, int readingCount)
+    {
+        sb.Append("<span class=\"lab-name\">").Append(Enc(label)).Append("</span>");
+        sb.Append("<span class=\"lab-value\">").Append(Enc(FormatValue(latest.Value)));
+        if (!string.IsNullOrWhiteSpace(latest.Unit))
+            sb.Append(" <span class=\"lab-unit\">").Append(Enc(latest.Unit)).Append("</span>");
+        sb.Append("</span>");
+        if (latest.TakenAt is { } when)
+            sb.Append("<span class=\"lab-when\">").Append(Enc(when.ToString("MM/dd/yyyy"))).Append("</span>");
+        if (readingCount > 1)
+            sb.Append("<span class=\"lab-count\">").Append(readingCount).Append(" readings ›</span>");
     }
 
     private static void RenderDecisionSupport(StringBuilder sb, IReadOnlyList<CdsCard> cards, string id)
@@ -375,16 +427,25 @@ internal static class EhrChartRenderer
         .row-action { font-size: .72rem; font-weight: 700; color: var(--accent); text-decoration: none;
                       border: 1px solid #c5dcf5; border-radius: 6px; padding: .12rem .5rem; white-space: nowrap; }
         .row-action:hover { background: var(--info-soft); }
+        .row-date { font-size: .76rem; color: var(--ink-muted); white-space: nowrap; }
         .chevron { color: var(--ink-muted); font-size: 1.1rem; }
 
-        .lab-list { list-style: none; margin: 0; padding: .15rem 0 .5rem; }
-        .lab-row { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: .6rem;
-                   padding: .5rem 1rem; border-top: 1px solid var(--rule); }
-        .lab-row:first-child { border-top: 0; }
-        .lab-name { font-weight: 500; }
+        .lab-row { display: flex; align-items: baseline; gap: .6rem; padding: .5rem 1rem;
+                   border-top: 1px solid var(--rule); }
+        .lab-row:first-child, .lab-detail:first-child .lab-row { border-top: 0; }
+        .lab-name { flex: 1; min-width: 0; font-weight: 500; }
         .lab-value { font-weight: 700; font-size: 1.05rem; letter-spacing: -.01em; }
         .lab-unit { font-weight: 500; font-size: .78rem; color: var(--ink-muted); }
-        .lab-when { font-size: .76rem; color: var(--ink-muted); }
+        .lab-when { font-size: .76rem; color: var(--ink-muted); white-space: nowrap; }
+        .lab-count { font-size: .72rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
+        .lab-detail summary { cursor: pointer; list-style: none; }
+        .lab-detail summary::-webkit-details-marker { display: none; }
+        .lab-detail summary:hover { background: var(--bg); }
+        .lab-detail[open] > summary { background: var(--bg); }
+        .lab-history { width: 100%; border-collapse: collapse; background: var(--bg); }
+        .lab-history td { padding: .3rem 1rem; font-size: .82rem; border-top: 1px solid var(--rule); }
+        .lab-history .lh-date { color: var(--ink-muted); }
+        .lab-history .lh-val { text-align: right; font-weight: 600; }
         .card-foot-link { display: block; padding: .55rem 1rem .8rem; font-size: .8rem; font-weight: 600;
                           color: var(--accent); text-decoration: none; }
         .card-foot-link:hover { text-decoration: underline; }

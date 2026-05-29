@@ -356,6 +356,31 @@ public class FhirToFactMapperTests
         inputs.Labs.Single(l => l.Name == "diastolic_bp").Value.Should().Be(88);
     }
 
+    [Fact]
+    public void Condition_Projects_Onset_And_Recorded_Date()
+    {
+        var condition = new Condition
+        {
+            Code = new CodeableConcept { Coding = new List<Coding> { new("http://snomed.info/sct", "73211009") { Display = "Diabetes mellitus" } } },
+            ClinicalStatus = new CodeableConcept { Coding = new List<Coding> { new("http://terminology.hl7.org/CodeSystem/condition-clinical", "active") } },
+            Onset = new FhirDateTime("2005-09-20"),
+            RecordedDate = "2019-05-28",
+        };
+        var chart = new PatientChart(
+            Patient: BuildPatient(),
+            Conditions: new[] { condition },
+            Observations: Array.Empty<Observation>(),
+            MedicationRequests: Array.Empty<MedicationRequest>(),
+            Allergies: Array.Empty<AllergyIntolerance>(),
+            Immunizations: Array.Empty<Hl7.Fhir.Model.Immunization>(),
+            Procedures: Array.Empty<Hl7.Fhir.Model.Procedure>(),
+            Encounter: null);
+
+        var projected = _mapper.Project(chart).Conditions.Should().ContainSingle().Subject;
+        projected.Onset.Should().Be(new DateTimeOffset(2005, 9, 20, 0, 0, 0, TimeSpan.Zero));
+        projected.RecordedDate.Should().Be(new DateTimeOffset(2019, 5, 28, 0, 0, 0, TimeSpan.Zero));
+    }
+
     [Theory]
     [InlineData("Influenza, seasonal", "influenza")]
     [InlineData("Tdap booster", "tdap")]

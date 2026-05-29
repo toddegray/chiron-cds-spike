@@ -203,4 +203,51 @@ public class EhrChartRendererTests
         var html = Render(Inputs(), new[] { card });
         html.Should().NotContain("<span class=\"cds-source\">");
     }
+
+    [Fact]
+    public void Key_Lab_With_Multiple_Readings_Is_Expandable_With_History()
+    {
+        var labs = new[]
+        {
+            new Lab("systolic_bp", 155, "mm[Hg]", new DateTimeOffset(2026, 5, 29, 0, 0, 0, TimeSpan.Zero)),
+            new Lab("systolic_bp", 120, "mm[Hg]", new DateTimeOffset(2019, 5, 28, 0, 0, 0, TimeSpan.Zero)),
+            new Lab("systolic_bp", 118, "mm[Hg]", TakenAt: null),
+        };
+        var html = Render(Inputs(labs: labs), Array.Empty<CdsCard>());
+        html.Should().Contain("<details class=\"lab-detail\">", because: "a lab with history is expandable");
+        html.Should().Contain("lab-history", because: "the expanded view tabulates every reading");
+        html.Should().Contain("3 readings");
+        html.Should().Contain("155", because: "the headline shows the most recent value");
+        html.Should().Contain("05/28/2019", because: "the older reading appears in the history table");
+        html.Should().Contain("<td class=\"lh-date\">—</td>",
+            because: "a reading with no date renders a placeholder in the history cell (not the title's em-dash)");
+    }
+
+    [Fact]
+    public void Single_Reading_Lab_Is_Not_Expandable()
+    {
+        var html = Render(Inputs(labs: new[] { new Lab("inr", 1.1, null) }), Array.Empty<CdsCard>());
+        html.Should().NotContain("<details class=\"lab-detail\">");
+    }
+
+    [Fact]
+    public void Problem_List_Shows_Recorded_Date_And_Orders_Most_Recent_First()
+    {
+        var older = new Condition("hypertension", Active: true, RecordedDate: new DateTimeOffset(2019, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var newer = new Condition("chest_pain", Active: true, RecordedDate: new DateTimeOffset(2023, 6, 2, 0, 0, 0, TimeSpan.Zero));
+        var html = Render(Inputs(conditions: new[] { older, newer }), Array.Empty<CdsCard>());
+        html.Should().Contain("Recorded Jun 2023");
+        html.Should().Contain("Recorded Jan 2019");
+        html.IndexOf("Chest pain", StringComparison.Ordinal).Should().BeLessThan(
+            html.IndexOf("Hypertension", StringComparison.Ordinal),
+            because: "the more recently recorded problem sorts first");
+    }
+
+    [Fact]
+    public void Problem_With_Onset_Shows_Onset_Year()
+    {
+        var pcos = new Condition("pcos", Onset: new DateTimeOffset(2005, 9, 20, 0, 0, 0, TimeSpan.Zero), Active: true);
+        var html = Render(Inputs(conditions: new[] { pcos }), Array.Empty<CdsCard>());
+        html.Should().Contain("Onset 2005", because: "onset is preferred over recorded date when present");
+    }
 }

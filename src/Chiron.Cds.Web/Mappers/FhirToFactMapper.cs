@@ -125,12 +125,14 @@ public sealed class FhirToFactMapper
         var onset = condition.Onset is FhirDateTime fdt
             && DateTimeOffset.TryParse(fdt.Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto)
             ? dto : (DateTimeOffset?)null;
+        var recorded = DateTimeOffset.TryParse(condition.RecordedDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var rec)
+            ? rec : (DateTimeOffset?)null;
 
         foreach (var coding in condition.Code.Coding)
         {
             var name = NormalizeConditionName(coding.Display ?? coding.Code);
             if (string.IsNullOrEmpty(name)) continue;
-            yield return new EngineCondition(name, onset, active);
+            yield return new EngineCondition(name, onset, active, recorded);
         }
     }
 
