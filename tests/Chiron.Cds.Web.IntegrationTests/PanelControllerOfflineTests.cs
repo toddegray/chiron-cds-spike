@@ -1,5 +1,6 @@
 using System.Net;
 using Chiron.Cds.Engine;
+using Chiron.Cds.Engine.Primitives;
 using Chiron.Cds.Web.CdsHooks.Models;
 using Chiron.Cds.Web.Configuration;
 using Chiron.Cds.Web.FhirClient;
@@ -67,22 +68,33 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
     }
 
     [Fact]
-    public async Task Patient_Route_Renders_Workflow_Rail_With_Brief_Active_On_Success()
+    public async Task Patient_Route_Renders_Ehr_Summary_With_Section_Tabs()
     {
         using var client = _factory.CreateClient();
         var resp = await client.GetAsync("/app/patient/p-good");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
-        body.Should().Contain("class=\"chart-rail\"");
+        body.Should().Contain("class=\"topbar\"",
+            because: "the EHR Visit Brief renders the patient-identity banner");
+        body.Should().Contain("Problem List");
         body.Should().Contain("href=\"/app/patient/p-good/results\"",
-            because: "the Results step on the rail links into the per-patient results route");
+            because: "the section tab strip links into the per-patient results route");
         body.Should().Contain("href=\"/app/patient/p-good/orders\"");
         body.Should().Contain("href=\"/app/patient/p-good/notes\"");
         body.Should().Contain("href=\"/app/patient/p-good/signoff\"");
-        body.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p-good\"",
-            because: "the Brief step is highlighted active when the brief is the rendered page");
-        body.Should().Contain("Next: Results →",
-            because: "the workflow rail prompts the doctor to advance to the Results step");
+        body.Should().Contain("class=\"tab active\"",
+            because: "the Summary tab is highlighted active when the brief is the rendered page");
+    }
+
+    [Fact]
+    public async Task Patient_Route_Renders_Could_Not_Load_When_Inputs_Missing()
+    {
+        using var client = _factory.CreateClient();
+        var resp = await client.GetAsync("/app/patient/p-noinputs");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await resp.Content.ReadAsStringAsync();
+        body.Should().Contain("Chart could not be loaded.",
+            because: "an error-free entry with no engine inputs falls back to the could-not-load banner");
     }
 
     [Fact]
@@ -169,6 +181,11 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
             {
                 "p-good" => Good(patientId, "Happy, Patient"),
                 "p-bad" => Bad(patientId, "Broken, Patient"),
+                // Error-free but no engine inputs — the controller's defensive
+                // null-inputs guard, distinct from the Error degrade path.
+                "p-noinputs" => new PanelEntry(
+                    PatientId: patientId, DisplayName: "Nodata, Patient", AgeSex: string.Empty,
+                    Inputs: null, Cards: Array.Empty<CdsCard>(), Error: null),
                 _ => null,
             });
 
@@ -176,7 +193,14 @@ public class PanelControllerOfflineTests : IClassFixture<PanelControllerOfflineT
             PatientId: id,
             DisplayName: name,
             AgeSex: "45y · Female",
-            Inputs: null,
+            Inputs: new EngineInputs(
+                new Patient(id, 45, "F"),
+                Array.Empty<Medication>(),
+                Array.Empty<Lab>(),
+                new[] { new Condition("type_2_diabetes_mellitus") },
+                Array.Empty<Allergy>(),
+                Array.Empty<Immunization>(),
+                Array.Empty<Procedure>()),
             Cards: Array.Empty<CdsCard>(),
             Error: null);
 

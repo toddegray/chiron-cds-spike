@@ -391,20 +391,22 @@ public sealed class PanelController : ControllerBase
                 MediaTypeNames.Text.Html);
         }
 
-        var header = entry.Inputs is null
-            ? null
-            : PatientHeader.From(
-                entry.Inputs,
-                entry.DisplayName,
-                dateOfBirth: entry.DateOfBirth,
-                mrn: entry.Mrn);
-        var html = AlertHtmlRenderer.Render(
-            heading: entry.DisplayName,
-            subline: string.Empty,
-            cards: entry.Cards,
-            navBar: NavBar(),
-            patient: header,
-            patientId: id);
+        if (entry.Inputs is null)
+            return Content(
+                AlertHtmlRenderer.Render(
+                    heading: entry.DisplayName, subline: string.Empty,
+                    cards: Array.Empty<CdsHooks.Models.CdsCard>(),
+                    banner: "Chart could not be loaded.", navBar: NavBar(), patient: null),
+                MediaTypeNames.Text.Html);
+
+        var html = EhrChartRenderer.Render(
+            patientId: id,
+            displayName: entry.DisplayName,
+            ageSex: entry.AgeSex,
+            dateOfBirth: entry.DateOfBirth,
+            mrn: entry.Mrn,
+            inputs: entry.Inputs,
+            cards: entry.Cards);
         return Content(html, MediaTypeNames.Text.Html);
     }
 
