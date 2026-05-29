@@ -8,7 +8,7 @@ namespace Chiron.Cds.Web.IntegrationTests;
 
 public class OrderEntryRendererTests
 {
-    private const string NavBar = "<span class=\"brand\">Chiron</span>";
+    private static readonly ChartShell.Header Hdr = new("p1", "SMITH, ANNIE", "35y · Female", "1980-01-01", "p1");
     private static readonly IReadOnlyList<PharmacyEntry> Pharmacies = new[]
     {
         new PharmacyEntry { Id = "cvs", DisplayName = "CVS Pharmacy — sandbox stub" },
@@ -36,7 +36,7 @@ public class OrderEntryRendererTests
     [Fact]
     public void Medication_Page_Renders_Order_SubNav_With_Medication_Active()
     {
-        var html = OrderEntryRenderer.Render(View(), NavBar);
+        var html = OrderEntryRenderer.Render(View(), Hdr);
         html.Should().Contain("class=\"order-subnav\"",
             because: "the medication page carries the same Medication/Labs/Imaging strip as the sibling order sub-pages");
         html.Should().Contain("href=\"/app/patient/p1/orders\" class=\"active\">Medication</a>");
@@ -47,8 +47,8 @@ public class OrderEntryRendererTests
     [Fact]
     public void Empty_View_Renders_Form_With_Pharmacy_Dropdown_And_Single_Sign_Button()
     {
-        var html = OrderEntryRenderer.Render(View(), NavBar);
-        html.Should().Contain("<h1>SMITH, ANNIE</h1>");
+        var html = OrderEntryRenderer.Render(View(), Hdr);
+        html.Should().Contain("SMITH, ANNIE", because: "the patient name shows in the shell top bar");
         html.Should().Contain("name=\"DrugName\"");
         html.Should().Contain("name=\"Strength\"");
         html.Should().Contain("name=\"Refills\"");
@@ -58,8 +58,7 @@ public class OrderEntryRendererTests
             because: "the single-button UX has one Sign action (no separate Check button)");
         html.Should().NotContain("Check CDS",
             because: "the old Check button is gone — Sign always runs CDS first");
-        html.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p1/orders\"",
-            because: "the Orders step on the rail is highlighted active on the medication order page");
+        html.Should().Contain("class=\"tab active\" href=\"/app/patient/p1/orders\"", because: "the Orders tab is highlighted active on the medication order page");
     }
 
     [Fact]
@@ -71,7 +70,7 @@ public class OrderEntryRendererTests
             View(OrderEntryStatus.Blocked,
                 cards: new[] { card },
                 message: "Acknowledge 1 critical alert to sign."),
-            NavBar);
+            Hdr);
         html.Should().Contain("class=\"banner warn\"");
         html.Should().Contain("Acknowledge 1 critical alert to sign.");
         html.Should().Contain("class=\"badge critical\">CRITICAL");
@@ -92,7 +91,7 @@ public class OrderEntryRendererTests
             new CdsCardSource("Chiron"), "Stop B.", "fp-b", Array.Empty<CdsCoding>());
         var html = OrderEntryRenderer.Render(
             View(OrderEntryStatus.Blocked, cards: new[] { c1, c2 }),
-            NavBar);
+            Hdr);
         html.Should().Contain(">Sign with 2 acknowledgements</button>",
             because: "two unacked criticals render the plural label, exercising the != 1 branch");
     }
@@ -105,7 +104,7 @@ public class OrderEntryRendererTests
         var ack = new HashSet<string>(StringComparer.Ordinal) { "fp-critical" };
         var html = OrderEntryRenderer.Render(
             View(OrderEntryStatus.Blocked, cards: new[] { card }, acknowledged: ack),
-            NavBar);
+            Hdr);
         html.Should().Contain("name=\"Acknowledged\" value=\"fp-critical\" checked",
             because: "the box stays ticked when the fingerprint is already acked so the user doesn't re-tick across resubmits");
         html.Should().Contain(">Sign order</button>",
@@ -123,7 +122,7 @@ public class OrderEntryRendererTests
             Array.Empty<CdsCoding>());
         var ack = new HashSet<string>(StringComparer.Ordinal) { "fp-shown", "fp-gone" };
         var html = OrderEntryRenderer.Render(
-            View(OrderEntryStatus.Blocked, cards: new[] { card }, acknowledged: ack), NavBar);
+            View(OrderEntryStatus.Blocked, cards: new[] { card }, acknowledged: ack), Hdr);
         html.Should().Contain("<input type=\"hidden\" name=\"Acknowledged\" value=\"fp-gone\"");
         html.Should().NotContain("<input type=\"hidden\" name=\"Acknowledged\" value=\"fp-shown\"");
     }
@@ -133,7 +132,7 @@ public class OrderEntryRendererTests
     {
         var html = OrderEntryRenderer.Render(
             View(OrderEntryStatus.NotAuthorised),
-            NavBar);
+            Hdr);
         html.Should().Contain("class=\"signin-pane\"");
         html.Should().Contain("Sign in to write orders");
         html.Should().Contain("href=\"/smart/launch\"",
@@ -152,7 +151,7 @@ public class OrderEntryRendererTests
     {
         var html = OrderEntryRenderer.Render(
             View(OrderEntryStatus.Failed, message: "FHIR write failed: FHIR 403 Forbidden"),
-            NavBar);
+            Hdr);
         html.Should().Contain("class=\"banner err\"");
         html.Should().Contain("FHIR 403 Forbidden");
         html.Should().Contain("name=\"DrugName\"");
@@ -163,7 +162,7 @@ public class OrderEntryRendererTests
     {
         var html = OrderEntryRenderer.Render(
             View(OrderEntryStatus.SignedOk, writtenId: "MR-12345"),
-            NavBar);
+            Hdr);
         html.Should().Contain("class=\"banner ok\"");
         html.Should().Contain("<code>MR-12345</code>");
         html.Should().Contain("href=\"/app/patient/p1\"");
@@ -179,7 +178,7 @@ public class OrderEntryRendererTests
             Refills: 5, AsNeeded: false, PrnReason: null,
             PharmacyId: "rite-aid", PharmacyDisplay: "Rite Aid — sandbox stub",
             SubstitutionAllowed: false, NoteToPharmacist: "patient is allergic to vitamin K");
-        var html = OrderEntryRenderer.Render(View(OrderEntryStatus.Blocked, draft: draft), NavBar);
+        var html = OrderEntryRenderer.Render(View(OrderEntryStatus.Blocked, draft: draft), Hdr);
         html.Should().Contain("value=\"warfarin\"");
         html.Should().Contain("value=\"5 mg\"");
         html.Should().Contain("value=\"30 tablets\"");
@@ -197,7 +196,7 @@ public class OrderEntryRendererTests
         var card = new CdsCard("<svg onload=alert(1)>", "critical",
             new CdsCardSource("Chiron"), "<script>", "fp", Array.Empty<CdsCoding>());
         var html = OrderEntryRenderer.Render(
-            View(OrderEntryStatus.Blocked, draft: draft, cards: new[] { card }), NavBar);
+            View(OrderEntryStatus.Blocked, draft: draft, cards: new[] { card }), Hdr);
         html.Should().NotContain("<script>alert");
         html.Should().NotContain("<svg onload=alert");
         html.Should().NotContain("<img src=x>");

@@ -5,7 +5,7 @@ namespace Chiron.Cds.Web.IntegrationTests;
 
 public class ServiceRequestRendererTests
 {
-    private const string NavBar = "<span class=\"brand\">Chiron</span>";
+    private static readonly ChartShell.Header Hdr = new("p1", "SMITH, ANNIE", "35y · Female", "1980-01-01", "p1");
 
     private static ServiceRequestView View(
         ServiceRequestCategory category = ServiceRequestCategory.Laboratory,
@@ -29,7 +29,7 @@ public class ServiceRequestRendererTests
     [Fact]
     public void Lab_Page_Renders_Sub_Nav_With_Labs_Active()
     {
-        var html = ServiceRequestRenderer.Render(View(ServiceRequestCategory.Laboratory), NavBar);
+        var html = ServiceRequestRenderer.Render(View(ServiceRequestCategory.Laboratory), Hdr);
         html.Should().Contain("class=\"order-subnav\"");
         html.Should().Contain("href=\"/app/patient/p1/orders\">Medication</a>");
         html.Should().Contain("href=\"/app/patient/p1/orders/labs\" class=\"active\">Labs</a>");
@@ -41,7 +41,7 @@ public class ServiceRequestRendererTests
     [Fact]
     public void Imaging_Page_Renders_Sub_Nav_With_Imaging_Active()
     {
-        var html = ServiceRequestRenderer.Render(View(ServiceRequestCategory.Imaging), NavBar);
+        var html = ServiceRequestRenderer.Render(View(ServiceRequestCategory.Imaging), Hdr);
         html.Should().Contain("href=\"/app/patient/p1/orders/imaging\" class=\"active\">Imaging</a>");
         html.Should().Contain("MRI brain",
             because: "the imaging hint text references typical imaging studies");
@@ -50,7 +50,7 @@ public class ServiceRequestRendererTests
     [Fact]
     public void Lab_Hint_Names_Concrete_Lab_Examples()
     {
-        var html = ServiceRequestRenderer.Render(View(ServiceRequestCategory.Laboratory), NavBar);
+        var html = ServiceRequestRenderer.Render(View(ServiceRequestCategory.Laboratory), Hdr);
         html.Should().Contain("CBC with diff");
         html.Should().Contain("HbA1c");
     }
@@ -65,7 +65,7 @@ public class ServiceRequestRendererTests
             new ServiceRequestSummary("HbA1c", "Completed", null, null,
                 DateTimeOffset.Parse("2025-12-01T08:00:00Z")),
         };
-        var html = ServiceRequestRenderer.Render(View(history: history), NavBar);
+        var html = ServiceRequestRenderer.Render(View(history: history), Hdr);
         html.Should().Contain("Lipid Panel");
         html.Should().Contain("status-active");
         html.Should().Contain("HbA1c");
@@ -78,7 +78,7 @@ public class ServiceRequestRendererTests
     [Fact]
     public void Empty_History_Renders_Empty_State()
     {
-        var html = ServiceRequestRenderer.Render(View(ServiceRequestCategory.Imaging), NavBar);
+        var html = ServiceRequestRenderer.Render(View(ServiceRequestCategory.Imaging), Hdr);
         html.Should().Contain("No prior imaging orders");
     }
 
@@ -86,7 +86,7 @@ public class ServiceRequestRendererTests
     public void Draft_Echoes_Submitted_Values()
     {
         var draft = new ServiceRequestDraft("Lipid Panel", "CV risk", "urgent");
-        var html = ServiceRequestRenderer.Render(View(draft: draft), NavBar);
+        var html = ServiceRequestRenderer.Render(View(draft: draft), Hdr);
         html.Should().Contain("value=\"Lipid Panel\"");
         html.Should().Contain("value=\"CV risk\"");
         html.Should().Contain("<option value=\"urgent\" selected");
@@ -97,7 +97,7 @@ public class ServiceRequestRendererTests
     {
         var html = ServiceRequestRenderer.Render(
             View(ServiceRequestCategory.Laboratory, status: ServiceRequestStatus.SignedOk, writtenId: "sr-99"),
-            NavBar);
+            Hdr);
         html.Should().Contain("class=\"banner ok\"");
         html.Should().Contain("<code>sr-99</code>");
         html.Should().Contain("href=\"/app/patient/p1/orders/labs\"",
@@ -110,7 +110,7 @@ public class ServiceRequestRendererTests
     public void NotAuthorised_Renders_Sign_In_Pane_Linking_To_Smart_Launch()
     {
         var html = ServiceRequestRenderer.Render(
-            View(status: ServiceRequestStatus.NotAuthorised), NavBar);
+            View(status: ServiceRequestStatus.NotAuthorised), Hdr);
         html.Should().Contain("class=\"signin-pane\"");
         html.Should().Contain("Sign in to place laboratory orders");
         html.Should().Contain("href=\"/smart/launch\"");
@@ -123,7 +123,7 @@ public class ServiceRequestRendererTests
     {
         var html = ServiceRequestRenderer.Render(
             View(status: ServiceRequestStatus.Failed, message: "FHIR write failed: FHIR 403 Forbidden"),
-            NavBar);
+            Hdr);
         html.Should().Contain("class=\"banner err\"");
         html.Should().Contain("FHIR 403 Forbidden");
         html.Should().Contain("name=\"OrderText\"");
@@ -133,7 +133,7 @@ public class ServiceRequestRendererTests
     public void PageError_Renders_Banner_When_The_Underlying_Search_Failed()
     {
         var html = ServiceRequestRenderer.Render(
-            View(pageError: "Timed out"), NavBar);
+            View(pageError: "Timed out"), Hdr);
         html.Should().Contain("class=\"banner err\"");
         html.Should().Contain("Timed out",
             because: "a search failure surfaces as a banner above the form so the user knows the history is incomplete");
@@ -150,7 +150,7 @@ public class ServiceRequestRendererTests
             new ServiceRequestSummary("<svg onload=alert(1)>", "Active", "Routine", "<b>r</b>",
                 DateTimeOffset.UtcNow),
         };
-        var html = ServiceRequestRenderer.Render(View(draft: draft, history: history), NavBar);
+        var html = ServiceRequestRenderer.Render(View(draft: draft, history: history), Hdr);
         html.Should().NotContain("<script>alert");
         html.Should().NotContain("<img src=x>");
         html.Should().NotContain("<svg onload=alert");

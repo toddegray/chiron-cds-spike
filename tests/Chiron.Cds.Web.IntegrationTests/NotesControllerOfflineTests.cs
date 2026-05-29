@@ -37,8 +37,7 @@ public class NotesControllerOfflineTests : IClassFixture<NotesControllerOfflineT
             because: "the stub's pre-filled Assessment text round-trips through the form");
         body.Should().Contain("Stubbed prior note",
             because: "the stub history populates the right-rail list");
-        body.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p1/notes\"",
-            because: "the Notes step on the rail is marked active on this route");
+        body.Should().Contain("class=\"tab active\" href=\"/app/patient/p1/notes\"", because: "the notes tab is marked active");
     }
 
     [Fact]

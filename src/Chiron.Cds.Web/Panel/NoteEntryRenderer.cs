@@ -7,19 +7,10 @@ namespace Chiron.Cds.Web.Panel;
 /// <summary>Renders the per-patient Notes rail step: SOAP draft form + history list.</summary>
 internal static class NoteEntryRenderer
 {
-    public static string Render(NoteEntryView view, string navBar)
+    public static string Render(NoteEntryView view, ChartShell.Header header)
     {
         ArgumentNullException.ThrowIfNull(view);
         var sb = new StringBuilder();
-        sb.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">");
-        sb.Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-        sb.Append("<title>Notes — ").Append(WebEncode(view.PatientDisplayName)).Append("</title>");
-        sb.Append(InlineCss());
-        sb.Append("</head><body>");
-        sb.Append("<nav class=\"navbar\">").Append(navBar).Append("</nav>");
-        RenderHeader(sb, view);
-
-        ChartRail.OpenShell(sb, view.PatientId, ChartRail.Step.Notes);
         sb.Append("<main class=\"notes-main\">");
         switch (view.Status)
         {
@@ -39,19 +30,7 @@ internal static class NoteEntryRenderer
                 break;
         }
         sb.Append("</main>");
-        ChartRail.CloseShell(sb, view.PatientId, ChartRail.Step.Notes);
-        sb.Append("</body></html>");
-        return sb.ToString();
-    }
-
-    private static void RenderHeader(StringBuilder sb, NoteEntryView view)
-    {
-        sb.Append("<header class=\"page-header\"><div class=\"page-header-inner\">");
-        sb.Append("<h1>").Append(WebEncode(view.PatientDisplayName)).Append("</h1>");
-        if (!string.IsNullOrEmpty(view.PatientSubline))
-            sb.Append("<div class=\"demographics\"><span class=\"demo-item\">")
-              .Append(WebEncode(view.PatientSubline)).Append("</span></div>");
-        sb.Append("</div></header>");
+        return ChartShell.Page(header, ChartShell.Tab.Notes, "Notes — " + view.PatientDisplayName, sb.ToString(), ContentCss);
     }
 
     private static void RenderSignedBanner(StringBuilder sb, string? writtenId, string patientId)
@@ -140,24 +119,9 @@ internal static class NoteEntryRenderer
     private static string FormatWhen(DateTimeOffset? when) =>
         when is null ? "—" : when.Value.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    private static string InlineCss() => "<style>\n" + ChartRail.SharedCss + "\n" + @"
-        :root { --bg:#f5f5f7; --surface:#fff; --ink:#1d1d1f; --ink-soft:#515154; --ink-muted:#86868b;
-                --rule:#e5e5e7; --info:#1170d2; --warn:#c25e04; --crit:#d92121;
-                --warn-soft:#fff4e3; --info-soft:#e8f1fc; --crit-soft:#fde8e8; --ok:#1f8a47; --ok-soft:#e6f4ec; }
-        * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
-               margin:0; background:var(--bg); color:var(--ink); line-height:1.5; -webkit-font-smoothing:antialiased; }
-        .navbar { background:var(--ink); color:#fff; padding:.65rem 1.5rem; display:flex; gap:1.25rem;
-                  align-items:center; font-size:.92rem; font-weight:500; }
-        .navbar a { color:#fff; text-decoration:none; opacity:.75; }
-        .navbar a:hover { opacity:1; } .navbar .brand { font-weight:600; opacity:1; letter-spacing:-.01em; }
-        .page-header { background:linear-gradient(180deg,#fff 0%,var(--bg) 100%); border-bottom:1px solid var(--rule); }
-        .page-header-inner { max-width:1280px; margin:0 auto; padding:1.25rem 1.5rem 1.25rem; }
-        h1 { font-size:1.65rem; letter-spacing:-.02em; font-weight:700; margin:0 0 .35rem; }
-        .demographics { color:var(--ink-soft); font-size:.92rem; }
-
-        .notes-main { max-width:1280px; margin:1.5rem auto 3rem; padding:0 1.5rem;
-                      display:grid; grid-template-columns: minmax(0, 1fr) 320px; gap:1.5rem; }
+    // Content-only styles; shell chrome (vars, body, top bar, rail, tabs) is in ChartShell.
+    private const string ContentCss = @"
+        .notes-main { margin:1rem 0 2rem; display:grid; grid-template-columns: minmax(0, 1fr) 320px; gap:1.5rem; }
         .note-form { display:flex; flex-direction:column; gap:1rem; }
         .form-section { background:var(--surface); border-radius:14px; padding:1rem 1.25rem;
                         box-shadow:0 1px 2px rgba(0,0,0,.04); }
@@ -211,7 +175,7 @@ internal static class NoteEntryRenderer
         .link-back:hover { text-decoration:underline; }
 
         @media (max-width: 880px) { .notes-main { grid-template-columns: 1fr; } }
-    </style>";
+    ";
 
     private static string WebEncode(string? s) => WebUtility.HtmlEncode(s ?? string.Empty);
 }

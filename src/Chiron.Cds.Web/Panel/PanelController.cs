@@ -89,7 +89,7 @@ public sealed class PanelController : ControllerBase
             PageError: page.Error,
             WrittenId: writtenId);
         return Content(
-            ServiceRequestRenderer.Render(view, NavBar()),
+            ServiceRequestRenderer.Render(view, ShellHeader(id, entry)),
             MediaTypeNames.Text.Html);
     }
 
@@ -118,7 +118,7 @@ public sealed class PanelController : ControllerBase
         var page = await _signoff.GetForPatientAsync(id, ct).ConfigureAwait(false);
         var view = BuildSignOffView(id, entry, page, SignOffStatus.Empty, message: null, writtenId: null);
         return Content(
-            EncounterCloseRenderer.Render(view, NavBar()),
+            EncounterCloseRenderer.Render(view, ShellHeader(id, entry)),
             MediaTypeNames.Text.Html);
     }
 
@@ -148,7 +148,7 @@ public sealed class PanelController : ControllerBase
         };
         var view = BuildSignOffView(id, entry, page, status, message, writtenId);
         return Content(
-            EncounterCloseRenderer.Render(view, NavBar()),
+            EncounterCloseRenderer.Render(view, ShellHeader(id, entry)),
             MediaTypeNames.Text.Html);
     }
 
@@ -172,7 +172,7 @@ public sealed class PanelController : ControllerBase
         var view = BuildNotesView(id, entry, page.Draft, page.History, NoteEntryStatus.Empty,
             message: null, chartError: page.Error, writtenId: null);
         return Content(
-            NoteEntryRenderer.Render(view, NavBar()),
+            NoteEntryRenderer.Render(view, ShellHeader(id, entry)),
             MediaTypeNames.Text.Html);
     }
 
@@ -198,7 +198,7 @@ public sealed class PanelController : ControllerBase
         };
         var view = BuildNotesView(id, entry, draft, page.History, status, message, page.Error, writtenId);
         return Content(
-            NoteEntryRenderer.Render(view, NavBar()),
+            NoteEntryRenderer.Render(view, ShellHeader(id, entry)),
             MediaTypeNames.Text.Html);
     }
 
@@ -232,7 +232,7 @@ public sealed class PanelController : ControllerBase
             OrderEntryStatus.Empty, message: null, writtenId: null,
             acknowledged: new HashSet<string>(StringComparer.Ordinal));
         return Content(
-            OrderEntryRenderer.Render(view, NavBar()),
+            OrderEntryRenderer.Render(view, ShellHeader(id, entry)),
             MediaTypeNames.Text.Html);
     }
 
@@ -285,7 +285,7 @@ public sealed class PanelController : ControllerBase
 
         var view = BuildOrderView(id, entry, draft, cards, status, message, writtenId, ack);
         return Content(
-            OrderEntryRenderer.Render(view, NavBar()),
+            OrderEntryRenderer.Render(view, ShellHeader(id, entry)),
             MediaTypeNames.Text.Html);
     }
 
@@ -331,9 +331,9 @@ public sealed class PanelController : ControllerBase
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         var data = await _results.GetForPatientAsync(id, ct).ConfigureAwait(false);
-        return Content(
-            ResultReviewRenderer.Render(data, NavBar(), patientId: id),
-            MediaTypeNames.Text.Html);
+        var d = data.Demographics;
+        var header = new ChartShell.Header(id, d.DisplayName, d.AgeSex, d.DateOfBirth, d.Mrn);
+        return Content(ResultReviewRenderer.Render(data, header), MediaTypeNames.Text.Html);
     }
 
     [HttpGet("panel")]
@@ -498,6 +498,9 @@ public sealed class PanelController : ControllerBase
 
         public NoteDraft ToDraft() => new(Subjective, Objective, Assessment, Plan);
     }
+
+    private static ChartShell.Header ShellHeader(string id, PanelEntry? entry) =>
+        new(id, entry?.DisplayName ?? $"Patient {id}", entry?.AgeSex ?? string.Empty, entry?.DateOfBirth, entry?.Mrn);
 
     private static string NavBar() =>
         "<span class=\"brand\">Chiron</span>"

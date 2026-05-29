@@ -5,28 +5,16 @@ using System.Text;
 namespace Chiron.Cds.Web.Panel;
 
 /// <summary>
-/// Renders the patient Results page: chart-banner header at the top, lab
-/// trends as a stack of cards (latest value + sparkline + history table),
-/// then the recent reports as a list. Apple-Health-style typography.
+/// Renders the Results tab's content — lab trends as a stack of cards (latest
+/// value + sparkline + history table), then the recent reports as a list —
+/// wrapped in the shared <see cref="ChartShell"/>.
 /// </summary>
 internal static class ResultReviewRenderer
 {
-    public static string Render(ResultReviewData data, string navBar, string? patientId = null)
+    public static string Render(ResultReviewData data, ChartShell.Header header)
     {
         ArgumentNullException.ThrowIfNull(data);
         var sb = new StringBuilder();
-        sb.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">");
-        sb.Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-        sb.Append("<title>Results — ").Append(WebEncode(data.Demographics.DisplayName)).Append("</title>");
-        sb.Append(InlineCss());
-        sb.Append("</head><body>");
-        sb.Append("<nav class=\"navbar\">").Append(navBar).Append("</nav>");
-
-        RenderHeader(sb, data);
-
-        var railTarget = patientId ?? string.Empty;
-        var hasRail = !string.IsNullOrEmpty(railTarget);
-        if (hasRail) ChartRail.OpenShell(sb, railTarget, ChartRail.Step.Results);
         sb.Append("<main class=\"results-main\">");
         if (data.Error is not null)
         {
@@ -38,27 +26,8 @@ internal static class ResultReviewRenderer
             RenderReportsSection(sb, data.Reports);
         }
         sb.Append("</main>");
-        if (hasRail) ChartRail.CloseShell(sb, railTarget, ChartRail.Step.Results);
-        sb.Append("</body></html>");
-        return sb.ToString();
-    }
-
-    private static void RenderHeader(StringBuilder sb, ResultReviewData data)
-    {
-        var d = data.Demographics;
-        sb.Append("<header class=\"page-header\"><div class=\"page-header-inner\">");
-        sb.Append("<h1>").Append(WebEncode(d.DisplayName)).Append("</h1>");
-        sb.Append("<div class=\"demographics\">");
-        var parts = new List<string>(3);
-        if (!string.IsNullOrEmpty(d.AgeSex)) parts.Add(d.AgeSex);
-        if (!string.IsNullOrEmpty(d.DateOfBirth)) parts.Add("Born " + d.DateOfBirth);
-        if (!string.IsNullOrEmpty(d.Mrn)) parts.Add("MRN " + d.Mrn);
-        for (var i = 0; i < parts.Count; i++)
-        {
-            if (i > 0) sb.Append("<span class=\"demo-sep\"> · </span>");
-            sb.Append("<span class=\"demo-item\">").Append(WebEncode(parts[i])).Append("</span>");
-        }
-        sb.Append("</div></div></header>");
+        return ChartShell.Page(header, ChartShell.Tab.Results,
+            "Results — " + data.Demographics.DisplayName, sb.ToString(), ContentCss);
     }
 
     private static void RenderTrendsSection(StringBuilder sb, IReadOnlyList<LabTrend> trends)
@@ -193,32 +162,12 @@ internal static class ResultReviewRenderer
         return d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     }
 
-    private static string InlineCss() => "<style>\n" + ChartRail.SharedCss + "\n" + @"
-        :root {
-            --bg: #f5f5f7; --surface: #ffffff; --ink: #1d1d1f; --ink-soft: #515154;
-            --ink-muted: #86868b; --rule: #e5e5e7; --info: #1170d2; --warn: #c25e04;
-            --crit: #d92121; --warn-soft: #fff4e3; --ok: #1f8a47;
-        }
-        * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
-               margin: 0; background: var(--bg); color: var(--ink); line-height: 1.5; -webkit-font-smoothing: antialiased; }
-        .navbar { background: var(--ink); color: #fff; padding: .65rem 1.5rem;
-                  display: flex; gap: 1.25rem; align-items: center; font-size: .92rem; font-weight: 500; }
-        .navbar a { color: #fff; text-decoration: none; opacity: .75; }
-        .navbar a:hover { opacity: 1; }
-        .navbar .brand { font-weight: 600; opacity: 1; letter-spacing: -.01em; }
-
-        .page-header { background: linear-gradient(180deg, #fff 0%, var(--bg) 100%); border-bottom: 1px solid var(--rule); }
-        .page-header-inner { max-width: 1280px; margin: 0 auto; padding: 1.25rem 1.5rem 1.5rem; }
-        h1 { font-size: 1.65rem; letter-spacing: -.02em; font-weight: 700; margin: 0 0 .35rem; }
-        .demographics { color: var(--ink-soft); font-size: .92rem; display: flex; flex-wrap: wrap;
-                        align-items: baseline; column-gap: .35rem; row-gap: .15rem; }
-        .demo-sep { color: var(--ink-muted); }
+    // Content-only styles; shell chrome (vars, body, top bar, rail, tabs) is in ChartShell.
+    private const string ContentCss = @"
         .banner { background: var(--warn-soft); border: 1px solid #f0c46a; padding: .65rem .9rem;
-                  border-radius: 8px; max-width: 70ch; margin: 1.25rem auto; color: var(--warn); }
+                  border-radius: 8px; max-width: 70ch; margin: 1rem 0; color: var(--warn); }
 
-        .results-main { max-width: 1280px; margin: 1.5rem auto 3rem; padding: 0 1.5rem;
-                        display: grid; grid-template-columns: 1fr; gap: 2rem; }
+        .results-main { margin: 1rem 0 2rem; display: grid; grid-template-columns: 1fr; gap: 2rem; }
         .section h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: .06em;
                       color: var(--ink-muted); font-weight: 600; margin: 0 0 .75rem; }
         .empty { background: var(--surface); border-radius: 14px; padding: 1.25rem 1.5rem;
@@ -262,7 +211,7 @@ internal static class ResultReviewRenderer
         .report-status.status-preliminary, .report-status.status-partial { background: #e8f1fc; color: var(--info); }
         .report-meta { display: flex; gap: .75rem; font-size: .82rem; color: var(--ink-muted); margin-top: .2rem; }
         .report-conclusion { margin: .55rem 0 0; font-size: .92rem; color: var(--ink-soft); }
-    </style>";
+    ";
 
     private static string WebEncode(string? s) => WebUtility.HtmlEncode(s ?? string.Empty);
 }

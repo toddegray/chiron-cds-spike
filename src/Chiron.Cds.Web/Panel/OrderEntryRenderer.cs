@@ -14,20 +14,10 @@ internal static class OrderEntryRenderer
         .DisableHtml()
         .Build();
 
-    public static string Render(OrderEntryView view, string navBar)
+    public static string Render(OrderEntryView view, ChartShell.Header header)
     {
         ArgumentNullException.ThrowIfNull(view);
         var sb = new StringBuilder();
-        sb.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">");
-        sb.Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-        sb.Append("<title>Order — ").Append(WebEncode(view.PatientDisplayName)).Append("</title>");
-        sb.Append(InlineCss());
-        sb.Append("</head><body>");
-        sb.Append("<nav class=\"navbar\">").Append(navBar).Append("</nav>");
-
-        RenderHeader(sb, view);
-
-        ChartRail.OpenShell(sb, view.PatientId, ChartRail.Step.Orders);
         sb.Append("<main class=\"order-main\">");
         // Order sub-nav lives outside the status switch so it renders even
         // on the signed-ok / not-authorised pages — keeps the Medication /
@@ -50,9 +40,7 @@ internal static class OrderEntryRenderer
                 break;
         }
         sb.Append("</main>");
-        ChartRail.CloseShell(sb, view.PatientId, ChartRail.Step.Orders);
-        sb.Append("</body></html>");
-        return sb.ToString();
+        return ChartShell.Page(header, ChartShell.Tab.Orders, "Order — " + view.PatientDisplayName, sb.ToString(), ContentCss);
     }
 
     private static void RenderNotAuthorised(StringBuilder sb, OrderEntryView view)
@@ -64,16 +52,6 @@ internal static class OrderEntryRenderer
         sb.Append("<p><a class=\"btn primary\" href=\"/smart/launch\">Start SMART launch</a> ");
         sb.Append("<a class=\"btn secondary\" href=\"/app/patient/").Append(Uri.EscapeDataString(view.PatientId)).Append("/orders\">Back to draft</a></p>");
         sb.Append("</section>");
-    }
-
-    private static void RenderHeader(StringBuilder sb, OrderEntryView view)
-    {
-        sb.Append("<header class=\"page-header\"><div class=\"page-header-inner\">");
-        sb.Append("<h1>").Append(WebEncode(view.PatientDisplayName)).Append("</h1>");
-        if (!string.IsNullOrEmpty(view.PatientSubline))
-            sb.Append("<div class=\"demographics\"><span class=\"demo-item\">")
-              .Append(WebEncode(view.PatientSubline)).Append("</span></div>");
-        sb.Append("</div></header>");
     }
 
     private static void RenderSignedBanner(StringBuilder sb, string? writtenId, string patientId)
@@ -287,24 +265,9 @@ internal static class OrderEntryRenderer
         sb.Append("</label>");
     }
 
-    private static string InlineCss() => "<style>\n" + ChartRail.SharedCss + "\n" + @"
-        :root { --bg:#f5f5f7; --surface:#fff; --ink:#1d1d1f; --ink-soft:#515154; --ink-muted:#86868b;
-                --rule:#e5e5e7; --info:#1170d2; --warn:#c25e04; --crit:#d92121;
-                --warn-soft:#fff4e3; --info-soft:#e8f1fc; --crit-soft:#fde8e8; --ok:#1f8a47; --ok-soft:#e6f4ec; }
-        * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
-               margin:0; background:var(--bg); color:var(--ink); line-height:1.5; -webkit-font-smoothing:antialiased; }
-        .navbar { background:var(--ink); color:#fff; padding:.65rem 1.5rem; display:flex; gap:1.25rem;
-                  align-items:center; font-size:.92rem; font-weight:500; }
-        .navbar a { color:#fff; text-decoration:none; opacity:.75; }
-        .navbar a:hover { opacity:1; } .navbar .brand { font-weight:600; opacity:1; letter-spacing:-.01em; }
-        .page-header { background:linear-gradient(180deg,#fff 0%,var(--bg) 100%); border-bottom:1px solid var(--rule); }
-        .page-header-inner { max-width:1280px; margin:0 auto; padding:1.25rem 1.5rem 1.25rem; }
-        h1 { font-size:1.65rem; letter-spacing:-.02em; font-weight:700; margin:0 0 .35rem; }
-        .demographics { color:var(--ink-soft); font-size:.92rem; }
-
-        .order-main { max-width:1280px; margin:1.5rem auto 3rem; padding:0 1.5rem;
-                      display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:1.5rem; }
+    // Content-only styles; shell chrome (vars, body, top bar, rail, tabs) is in ChartShell.
+    private const string ContentCss = @"
+        .order-main { margin:1rem 0 2rem; display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:1.5rem; }
         .order-subnav-host { grid-column: 1 / -1; margin-bottom: .25rem; }
         .order-subnav { display:flex; gap:.5rem; }
         .order-subnav a { padding:.35rem .8rem; font-size:.85rem; color:var(--ink-soft); text-decoration:none;
@@ -373,7 +336,7 @@ internal static class OrderEntryRenderer
         .signin-pane .btn { display:inline-block; text-decoration:none; margin-right:.5rem; }
 
         @media (max-width: 880px) { .order-main { grid-template-columns: 1fr; } }
-    </style>";
+    ";
 
     private static string WebEncode(string? s) => WebUtility.HtmlEncode(s ?? string.Empty);
 }

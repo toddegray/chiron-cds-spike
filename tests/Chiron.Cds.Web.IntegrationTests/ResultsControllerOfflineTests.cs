@@ -38,7 +38,7 @@ public class ResultsControllerOfflineTests : IClassFixture<ResultsControllerOffl
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
 
-        body.Should().Contain("<h1>Happy, Patient</h1>");
+        body.Should().Contain("Happy, Patient", because: "the patient name shows in the shell top bar");
         body.Should().Contain("Glucose Level",
             because: "the stubbed lab observation projects into the trends section");
         body.Should().Contain("Temperature Oral",
@@ -47,12 +47,12 @@ public class ResultsControllerOfflineTests : IClassFixture<ResultsControllerOffl
             because: "the stubbed DiagnosticReport renders in the reports section");
         body.Should().Contain("status-amended",
             because: "the report status pill carries through to the rendered class");
-        body.Should().Contain("class=\"chart-rail\"",
-            because: "the patient page renders the visit-workflow rail");
+        body.Should().Contain("class=\"topbar\"",
+            because: "the Results page renders inside the shared chart shell");
         body.Should().Contain("href=\"/app/patient/p-good\"",
-            because: "the Visit brief step on the rail links back to the chart root");
-        body.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p-good/results\"",
-            because: "the Results step is marked active on the rail when the Results page is rendered");
+            because: "the Summary tab links back to the chart root");
+        body.Should().Contain("class=\"tab active\" href=\"/app/patient/p-good/results\"",
+            because: "the Results tab is marked active when the Results page is rendered");
     }
 
     [Fact]

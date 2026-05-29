@@ -38,8 +38,7 @@ public class OrderEntryControllerOfflineTests : IClassFixture<OrderEntryControll
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
         body.Should().Contain("name=\"DrugName\"");
-        body.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p1/orders\"",
-            because: "the Orders step on the rail is marked active on the medication order page");
+        body.Should().Contain("class=\"tab active\" href=\"/app/patient/p1/orders\"", because: "the orders tab is marked active");
         body.Should().Contain("href=\"/app/patient/p1/results\"");
         body.Should().Contain("<option value=\"stub-pharmacy\"");
         body.Should().Contain(">Sign order</button>",

@@ -10,11 +10,10 @@ using Markdig;
 namespace Chiron.Cds.Web.Panel;
 
 /// <summary>
-/// Renders the patient Visit Brief as a clinician-facing EHR summary: a dark
-/// patient-identity banner, a left icon rail, a tab strip across the chart
-/// sections, and a three-column body — Problem List / Medications / Allergies,
-/// Key Labs, and the Clinical Decision Support panel where Chiron's cards
-/// surface. Server-rendered HTML, no JavaScript.
+/// Renders the Summary tab's content for the patient Visit Brief — a
+/// three-column body of Problem List / Medications / Allergies, Key Labs, and
+/// the Clinical Decision Support panel where Chiron's cards surface — wrapped
+/// in the shared <see cref="ChartShell"/> (top bar, icon rail, tab strip).
 /// </summary>
 internal static class EhrChartRenderer
 {
@@ -46,22 +45,7 @@ internal static class EhrChartRenderer
         var id = Uri.EscapeDataString(patientId);
         var sb = new StringBuilder();
 
-        sb.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">");
-        sb.Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-        sb.Append("<title>").Append(Enc(displayName)).Append(" — Chiron</title>");
-        sb.Append(Css());
-        sb.Append("</head><body>");
-
-        RenderTopBar(sb, displayName, ageSex, dateOfBirth, mrn);
-
-        sb.Append("<div class=\"shell\">");
-        RenderIconRail(sb);
-
-        sb.Append("<div class=\"workspace\">");
-        RenderTabs(sb, id);
-
         sb.Append("<div class=\"chart-title-row\"><h1>Patient Chart</h1></div>");
-
         sb.Append("<div class=\"grid\">");
 
         // Column 1 — problems / meds / allergies
@@ -80,67 +64,10 @@ internal static class EhrChartRenderer
         sb.Append("<div class=\"col cds-col\">");
         RenderDecisionSupport(sb, cards, id);
         sb.Append("</div>");
-
         sb.Append("</div>");   // grid
-        sb.Append("</div>");   // workspace
-        sb.Append("</div>");   // shell
-        sb.Append("</body></html>");
-        return sb.ToString();
-    }
 
-    private static void RenderTopBar(StringBuilder sb, string name, string ageSex, string? dob, string? mrn)
-    {
-        sb.Append("<header class=\"topbar\">");
-        sb.Append("<div class=\"brand\"><span class=\"brand-mark\">✚</span> Chiron</div>");
-        sb.Append("<div class=\"patient-id\">");
-        sb.Append("<div class=\"pid-name\">").Append(Enc(name)).Append("</div>");
-        sb.Append("<div class=\"pid-sub\">");
-        var parts = new List<string>(3);
-        if (!string.IsNullOrWhiteSpace(ageSex)) parts.Add(ageSex);
-        if (!string.IsNullOrWhiteSpace(dob)) parts.Add("DOB " + dob);
-        if (!string.IsNullOrWhiteSpace(mrn)) parts.Add("MRN " + mrn);
-        sb.Append(Enc(string.Join("  •  ", parts)));
-        sb.Append("</div></div>");
-        sb.Append("<div class=\"topbar-meta\">");
-        sb.Append("<div>Epic Sandbox · SMART on FHIR</div>");
-        sb.Append("<div class=\"meta-dim\">Last updated ")
-          .Append(Enc(DateTimeOffset.Now.ToString("MM/dd/yyyy HH:mm")))
-          .Append("</div>");
-        sb.Append("</div>");
-        sb.Append("</header>");
-    }
-
-    private static void RenderIconRail(StringBuilder sb)
-    {
-        sb.Append("<nav class=\"icon-rail\" aria-label=\"Primary\">");
-        RailIcon(sb, "/app/panel", "Panel", "☰");
-        RailIcon(sb, "/app/search", "Find patient", "⌕");
-        RailIcon(sb, "/cds-services", "CDS Hooks", "✚");
-        sb.Append("</nav>");
-    }
-
-    private static void RailIcon(StringBuilder sb, string href, string label, string glyph)
-    {
-        sb.Append("<a class=\"rail-icon\" href=\"").Append(Enc(href)).Append("\" title=\"")
-          .Append(Enc(label)).Append("\" aria-label=\"").Append(Enc(label)).Append("\">")
-          .Append(glyph).Append("</a>");
-    }
-
-    private static void RenderTabs(StringBuilder sb, string id)
-    {
-        sb.Append("<nav class=\"tabs\" aria-label=\"Chart sections\">");
-        Tab(sb, $"/app/patient/{id}", "Summary", active: true);
-        Tab(sb, $"/app/patient/{id}/results", "Labs & Results", active: false);
-        Tab(sb, $"/app/patient/{id}/orders", "Orders", active: false);
-        Tab(sb, $"/app/patient/{id}/notes", "Notes", active: false);
-        Tab(sb, $"/app/patient/{id}/signoff", "Sign off", active: false);
-        sb.Append("</nav>");
-    }
-
-    private static void Tab(StringBuilder sb, string href, string label, bool active)
-    {
-        sb.Append("<a class=\"tab").Append(active ? " active" : "").Append("\" href=\"")
-          .Append(Enc(href)).Append("\">").Append(Enc(label)).Append("</a>");
+        var header = new ChartShell.Header(patientId, displayName, ageSex, dateOfBirth, mrn);
+        return ChartShell.Page(header, ChartShell.Tab.Summary, displayName + " — Chiron", sb.ToString(), ContentCss);
     }
 
     private static void RenderProblems(StringBuilder sb, IReadOnlyList<Condition> conditions)
@@ -364,48 +291,8 @@ internal static class EhrChartRenderer
 
     private static string Enc(string s) => WebUtility.HtmlEncode(s);
 
-    private static string Css() => @"<style>
-        :root {
-            --navy: #14294d; --navy-2: #1c3a63; --rail: #0f2038;
-            --bg: #eef1f5; --surface: #ffffff; --ink: #1d2733; --ink-soft: #51606f;
-            --ink-muted: #8593a3; --rule: #e2e7ee; --accent: #1f6fd6;
-            --crit: #d92121; --crit-soft: #fdecec; --warn: #c2640a; --warn-soft: #fdf2e3;
-            --info: #1f6fd6; --info-soft: #e9f2fd; --ok: #1f8a47;
-        }
-        * { box-sizing: border-box; }
-        body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.45;
-               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
-               -webkit-font-smoothing: antialiased; font-size: 14px; }
-
-        .topbar { display: flex; align-items: center; gap: 1.5rem; background: var(--navy);
-                  color: #fff; padding: .55rem 1.1rem; }
-        .brand { font-weight: 700; font-size: 1.05rem; letter-spacing: -.01em; display: flex;
-                 align-items: center; gap: .4rem; white-space: nowrap; }
-        .brand-mark { color: #5fb0ff; }
-        .patient-id { border-left: 1px solid rgba(255,255,255,.2); padding-left: 1.5rem; }
-        .pid-name { font-weight: 700; font-size: 1.05rem; }
-        .pid-sub { font-size: .82rem; color: #b9c6d6; margin-top: .05rem; }
-        .topbar-meta { margin-left: auto; text-align: right; font-size: .8rem; color: #cdd8e5; }
-        .topbar-meta .meta-dim { color: #8da0b6; font-size: .76rem; }
-
-        .shell { display: flex; min-height: calc(100vh - 56px); }
-        .icon-rail { width: 52px; background: var(--rail); flex-shrink: 0; display: flex;
-                     flex-direction: column; align-items: center; padding-top: .6rem; gap: .35rem; }
-        .rail-icon { width: 38px; height: 38px; border-radius: 9px; display: flex; align-items: center;
-                     justify-content: center; color: #9fb2c9; text-decoration: none; font-size: 1.15rem; }
-        .rail-icon:hover { background: rgba(255,255,255,.08); color: #fff; }
-
-        .workspace { flex: 1; min-width: 0; padding: 0 1.25rem 2rem; }
-        .tabs { display: flex; gap: .25rem; border-bottom: 1px solid var(--rule); background: var(--surface);
-                margin: 0 -1.25rem 0; padding: 0 1.25rem; position: sticky; top: 0; z-index: 2; }
-        .tab { padding: .8rem .9rem; font-size: .8rem; font-weight: 600; letter-spacing: .03em;
-               text-transform: uppercase; color: var(--ink-muted); text-decoration: none;
-               border-bottom: 2.5px solid transparent; }
-        .tab:hover { color: var(--ink-soft); }
-        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-        .chart-title-row h1 { font-size: 1.15rem; font-weight: 700; margin: 1rem 0 .9rem; }
-
+    // Content-only styles; the shell chrome (vars, body, topbar, rail, tabs) lives in ChartShell.
+    private const string ContentCss = @"
         .grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr); gap: 1rem; align-items: start; }
         .col { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 
@@ -483,5 +370,5 @@ internal static class EhrChartRenderer
         .cds-source { font-size: .72rem; color: var(--ink-muted); }
 
         @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
-    </style>";
+    ";
 }

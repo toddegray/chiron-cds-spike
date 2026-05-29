@@ -9,7 +9,7 @@ namespace Chiron.Cds.Web.IntegrationTests;
 /// </summary>
 public class ResultReviewRendererTests
 {
-    private const string NavBar = "<span class=\"brand\">Chiron</span>";
+    private static readonly ChartShell.Header Hdr = new("p1", "Smith, Jane", "35y · Female", "1990-01-15", "p1");
 
     private static ResultReviewData Empty(string id = "p1") => new(
         Demographics: new PatientDemographics("Smith, Jane", "35y · Female", "1990-01-15", id),
@@ -20,17 +20,17 @@ public class ResultReviewRendererTests
     [Fact]
     public void Renders_Header_With_Name_And_Demographics()
     {
-        var html = ResultReviewRenderer.Render(Empty(), NavBar);
-        html.Should().Contain("<h1>Smith, Jane</h1>");
+        var html = ResultReviewRenderer.Render(Empty(), Hdr);
+        html.Should().Contain("Smith, Jane", because: "the patient name shows in the shell top bar");
         html.Should().Contain("35y &#183; Female");
-        html.Should().Contain("Born 1990-01-15");
+        html.Should().Contain("DOB 1990-01-15");
         html.Should().Contain("MRN p1");
     }
 
     [Fact]
     public void Renders_Both_Empty_States_When_Patient_Has_No_Labs_Or_Reports()
     {
-        var html = ResultReviewRenderer.Render(Empty(), NavBar);
+        var html = ResultReviewRenderer.Render(Empty(), Hdr);
         html.Should().Contain("No lab observations on file");
         html.Should().Contain("No diagnostic reports on file");
     }
@@ -39,7 +39,7 @@ public class ResultReviewRendererTests
     public void Error_Banner_Replaces_Both_Sections_When_Fetch_Failed()
     {
         var failed = ResultReviewData.Failure("p1", "FHIR 403 Forbidden");
-        var html = ResultReviewRenderer.Render(failed, NavBar);
+        var html = ResultReviewRenderer.Render(failed, Hdr);
         html.Should().Contain("class=\"banner\"");
         html.Should().Contain("Chart results could not be loaded");
         html.Should().Contain("FHIR 403 Forbidden");
@@ -67,7 +67,7 @@ public class ResultReviewRendererTests
                     }),
             },
         };
-        var html = ResultReviewRenderer.Render(data, NavBar);
+        var html = ResultReviewRenderer.Render(data, Hdr);
         html.Should().Contain("Glucose Level");
         html.Should().Contain("LOINC 2345-7");
         html.Should().Contain("class=\"trend-value\">6");
@@ -89,7 +89,7 @@ public class ResultReviewRendererTests
                     new[] { new TrendPoint(DateTimeOffset.UtcNow, "2.4", "mg/dL", IsAbnormal: true) }),
             },
         };
-        var html = ResultReviewRenderer.Render(data, NavBar);
+        var html = ResultReviewRenderer.Render(data, Hdr);
         html.Should().Contain("trend-card abnormal");
         html.Should().Contain("Abnormal");
     }
@@ -105,7 +105,7 @@ public class ResultReviewRendererTests
                     new[] { new TrendPoint(DateTimeOffset.UtcNow, "1", "u", false) }),
             },
         };
-        var html = ResultReviewRenderer.Render(data, NavBar);
+        var html = ResultReviewRenderer.Render(data, Hdr);
         html.Should().NotContain("<svg class=\"sparkline\"",
             because: "a single data point cannot form a meaningful sparkline");
     }
@@ -123,7 +123,7 @@ public class ResultReviewRendererTests
                     DateTimeOffset.Parse("2020-08-13T19:36:06Z"), Conclusion: null),
             },
         };
-        var html = ResultReviewRenderer.Render(data, NavBar);
+        var html = ResultReviewRenderer.Render(data, Hdr);
         html.Should().Contain("report-status status-amended");
         html.Should().Contain("report-status status-final");
         html.Should().Contain("Lipid Panel");
@@ -147,7 +147,7 @@ public class ResultReviewRendererTests
                     DateTimeOffset.UtcNow, Conclusion: "<script>alert(3)</script>"),
             },
         };
-        var html = ResultReviewRenderer.Render(data, NavBar);
+        var html = ResultReviewRenderer.Render(data, Hdr);
         html.Should().NotContain("<img src=x>");
         html.Should().NotContain("<svg/onload=alert");
         html.Should().NotContain("<svg onload=alert");
@@ -168,7 +168,7 @@ public class ResultReviewRendererTests
                     new[] { new TrendPoint(DateTimeOffset.UtcNow, "5", "mmol/L", false) }),
             },
         };
-        var html = ResultReviewRenderer.Render(data, NavBar);
+        var html = ResultReviewRenderer.Render(data, Hdr);
         html.Should().Contain("Glucose Level");
         html.Should().NotContain("LOINC",
             because: "the LOINC pill is suppressed when no LOINC code is on the trend");
@@ -188,7 +188,7 @@ public class ResultReviewRendererTests
                 }),
             },
         };
-        var html = ResultReviewRenderer.Render(data, NavBar);
+        var html = ResultReviewRenderer.Render(data, Hdr);
         html.Should().NotContain("class=\"trend-unit\">",
             because: "the unit span is suppressed when the trend has no unit");
         // History rows should also omit a trailing unit space.
@@ -207,7 +207,7 @@ public class ResultReviewRendererTests
                     DateTimeOffset.Parse("2025-01-13T00:00:00Z"), Conclusion: null),
             },
         };
-        var html = ResultReviewRenderer.Render(data, NavBar);
+        var html = ResultReviewRenderer.Render(data, Hdr);
         html.Should().NotContain("class=\"report-category\"",
             because: "without a category, no category span renders");
     }
@@ -222,31 +222,20 @@ public class ResultReviewRendererTests
                 new ReportSummary("Notes", "Category", "final", IssuedAt: null, Conclusion: null),
             },
         };
-        var html = ResultReviewRenderer.Render(data, NavBar);
+        var html = ResultReviewRenderer.Render(data, Hdr);
         html.Should().Contain("report-issued\">—</span>",
             because: "a missing issued timestamp renders as an em-dash, not as a fake date");
     }
 
     [Fact]
-    public void Header_Includes_Workflow_Rail_With_Results_Active_When_PatientId_Supplied()
+    public void Renders_In_Shell_With_Results_Tab_Active()
     {
-        var html = ResultReviewRenderer.Render(Empty(), NavBar, patientId: "p1");
-        html.Should().Contain("class=\"chart-rail\"");
-        html.Should().Contain("href=\"/app/patient/p1\"",
-            because: "the Visit brief step links back to the chart root");
-        html.Should().Contain("href=\"/app/patient/p1/results\"",
-            because: "the Results step links to the per-patient results route");
-        html.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p1/results\"",
-            because: "the Results step is highlighted active on the results page");
-        html.Should().Contain("Next: Orders →",
-            because: "the workflow rail prompts the doctor to advance to Orders after Results");
-    }
-
-    [Fact]
-    public void Header_Omits_Workflow_Rail_When_PatientId_Not_Supplied()
-    {
-        var html = ResultReviewRenderer.Render(Empty(), NavBar);
-        html.Should().NotContain("class=\"chart-rail\"",
-            because: "callers that don't pass a patientId opt out of the rail layout");
+        var html = ResultReviewRenderer.Render(Empty(), Hdr);
+        html.Should().Contain("class=\"topbar\"",
+            because: "the Results page renders inside the shared chart shell");
+        html.Should().Contain("class=\"tab active\" href=\"/app/patient/p1/results\"",
+            because: "the Results tab is highlighted active on the results page");
+        html.Should().Contain("href=\"/app/patient/p1/orders\"",
+            because: "the tab strip links to the sibling chart sections");
     }
 }

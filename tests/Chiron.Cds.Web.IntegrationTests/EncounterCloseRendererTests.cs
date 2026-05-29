@@ -5,7 +5,7 @@ namespace Chiron.Cds.Web.IntegrationTests;
 
 public class EncounterCloseRendererTests
 {
-    private const string NavBar = "<span class=\"brand\">Chiron</span>";
+    private static readonly ChartShell.Header Hdr = new("p1", "SMITH, ANNIE", "35y · Female", "1980-01-01", "p1");
 
     private static SignOffView View(
         SignOffStatus status = SignOffStatus.Empty,
@@ -25,10 +25,9 @@ public class EncounterCloseRendererTests
     [Fact]
     public void Empty_Encounter_List_Renders_Empty_State()
     {
-        var html = EncounterCloseRenderer.Render(View(), NavBar);
+        var html = EncounterCloseRenderer.Render(View(), Hdr);
         html.Should().Contain("No encounters on file");
-        html.Should().MatchRegex("rail-step active\"><a href=\"/app/patient/p1/signoff\"",
-            because: "the Sign off step on the rail is highlighted active on the sign-off page");
+        html.Should().Contain("class=\"tab active\" href=\"/app/patient/p1/signoff\"", because: "the Sign off tab is active");
     }
 
     [Fact]
@@ -36,7 +35,7 @@ public class EncounterCloseRendererTests
     {
         var e = new EncounterSummary("e1", "Outpatient", "ambulatory", "InProgress",
             DateTimeOffset.Parse("2026-05-25T09:00:00Z"), null);
-        var html = EncounterCloseRenderer.Render(View(encounters: new[] { e }), NavBar);
+        var html = EncounterCloseRenderer.Render(View(encounters: new[] { e }), Hdr);
         html.Should().Contain("Outpatient");
         html.Should().Contain("ambulatory");
         html.Should().Contain("status-inprogress");
@@ -52,7 +51,7 @@ public class EncounterCloseRendererTests
         var e = new EncounterSummary("e1", "Outpatient", "ambulatory", "Finished",
             DateTimeOffset.Parse("2020-01-15T09:00:00Z"),
             DateTimeOffset.Parse("2020-01-15T09:30:00Z"));
-        var html = EncounterCloseRenderer.Render(View(encounters: new[] { e }), NavBar);
+        var html = EncounterCloseRenderer.Render(View(encounters: new[] { e }), Hdr);
         html.Should().Contain("status-finished");
         html.Should().Contain("2020-01-15");
         html.Should().NotContain("Sign off and close",
@@ -63,7 +62,7 @@ public class EncounterCloseRendererTests
     public void ClosedOk_Status_Renders_Success_Banner_And_Next_Patient_Link()
     {
         var html = EncounterCloseRenderer.Render(
-            View(SignOffStatus.ClosedOk, writtenId: "e1"), NavBar);
+            View(SignOffStatus.ClosedOk, writtenId: "e1"), Hdr);
         html.Should().Contain("class=\"banner ok\"");
         html.Should().Contain("<code>e1</code>");
         html.Should().Contain("href=\"/app/patient/p1\"");
@@ -74,7 +73,7 @@ public class EncounterCloseRendererTests
     [Fact]
     public void NotAuthorised_Status_Renders_Sign_In_Pane()
     {
-        var html = EncounterCloseRenderer.Render(View(SignOffStatus.NotAuthorised), NavBar);
+        var html = EncounterCloseRenderer.Render(View(SignOffStatus.NotAuthorised), Hdr);
         html.Should().Contain("class=\"signin-pane\"");
         html.Should().Contain("Sign in to close encounters");
         html.Should().Contain("href=\"/smart/launch\"");
@@ -94,7 +93,7 @@ public class EncounterCloseRendererTests
             View(SignOffStatus.AlreadyClosed,
                 encounters: new[] { e },
                 message: "That encounter is already marked finished — nothing to update."),
-            NavBar);
+            Hdr);
         html.Should().Contain("class=\"banner info\"");
         html.Should().Contain("already marked finished");
         html.Should().Contain("status-finished",
@@ -106,7 +105,7 @@ public class EncounterCloseRendererTests
     {
         var html = EncounterCloseRenderer.Render(
             View(SignOffStatus.Failed, message: "FHIR update failed: FHIR 403 Forbidden"),
-            NavBar);
+            Hdr);
         html.Should().Contain("class=\"banner err\"");
         html.Should().Contain("FHIR 403 Forbidden");
     }
@@ -115,7 +114,7 @@ public class EncounterCloseRendererTests
     public void Page_Error_Renders_Banner_Independently_Of_Status_Message()
     {
         var html = EncounterCloseRenderer.Render(
-            View(pageError: "Timed out"), NavBar);
+            View(pageError: "Timed out"), Hdr);
         html.Should().Contain("class=\"banner err\"");
         html.Should().Contain("Timed out");
     }
@@ -129,7 +128,7 @@ public class EncounterCloseRendererTests
             Status: "<svg onload=alert(1)>",
             PeriodStart: DateTimeOffset.UtcNow,
             PeriodEnd: null);
-        var html = EncounterCloseRenderer.Render(View(encounters: new[] { e }), NavBar);
+        var html = EncounterCloseRenderer.Render(View(encounters: new[] { e }), Hdr);
         html.Should().NotContain("<script>alert");
         html.Should().NotContain("<img src=x>");
         html.Should().NotContain("<svg onload");
