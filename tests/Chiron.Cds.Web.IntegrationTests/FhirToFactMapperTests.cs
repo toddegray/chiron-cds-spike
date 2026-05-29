@@ -381,6 +381,30 @@ public class FhirToFactMapperTests
         projected.RecordedDate.Should().Be(new DateTimeOffset(2019, 5, 28, 0, 0, 0, TimeSpan.Zero));
     }
 
+    [Fact]
+    public void Medication_From_Reference_Display_Projects_When_CodeableConcept_Absent()
+    {
+        // Epic returns medicationReference (with a display), not medicationCodeableConcept.
+        var req = new MedicationRequest
+        {
+            Status = MedicationRequest.MedicationrequestStatus.Active,
+            Medication = new ResourceReference { Display = "Lisinopril 20 MG tablet" },
+        };
+        var chart = new PatientChart(
+            Patient: BuildPatient(),
+            Conditions: Array.Empty<Condition>(),
+            Observations: Array.Empty<Observation>(),
+            MedicationRequests: new[] { req },
+            Allergies: Array.Empty<AllergyIntolerance>(),
+            Immunizations: Array.Empty<Hl7.Fhir.Model.Immunization>(),
+            Procedures: Array.Empty<Hl7.Fhir.Model.Procedure>(),
+            Encounter: null);
+
+        var med = _mapper.Project(chart).Medications.Should().ContainSingle().Subject;
+        med.Name.Should().Be("lisinopril", because: "the name comes from medicationReference.display when no codeable concept is present");
+        med.Active.Should().BeTrue();
+    }
+
     [Theory]
     [InlineData("Influenza, seasonal", "influenza")]
     [InlineData("Tdap booster", "tdap")]

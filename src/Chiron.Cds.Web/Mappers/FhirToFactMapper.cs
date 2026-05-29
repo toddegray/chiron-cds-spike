@@ -139,8 +139,11 @@ public sealed class FhirToFactMapper
     private IEnumerable<EngineMedication> ProjectMedication(MedicationRequest req)
     {
         var active = req.Status == MedicationRequest.MedicationrequestStatus.Active;
+        // medication[x] is a choice: Epic commonly uses medicationReference
+        // (with a display), others use medicationCodeableConcept. Handle both.
         var nameFromConcept = (req.Medication as CodeableConcept)?.Coding?.FirstOrDefault()?.Display
-            ?? (req.Medication as CodeableConcept)?.Text;
+            ?? (req.Medication as CodeableConcept)?.Text
+            ?? (req.Medication as ResourceReference)?.Display;
         var name = NormalizeMedicationName(nameFromConcept);
         if (string.IsNullOrEmpty(name)) yield break;
         yield return new EngineMedication(name, Active: active);
