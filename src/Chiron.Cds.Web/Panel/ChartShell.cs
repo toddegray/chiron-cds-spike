@@ -55,7 +55,7 @@ internal static class ChartShell
     private static void RenderTopBar(StringBuilder sb, Header h)
     {
         sb.Append("<header class=\"topbar\">");
-        sb.Append("<div class=\"brand\"><span class=\"brand-mark\">✚</span> Chiron</div>");
+        sb.Append("<div class=\"brand\"><span class=\"brand-mark\">✚</span> CDS</div>");
         sb.Append("<div class=\"patient-id\">");
         sb.Append("<div class=\"pid-name\">").Append(Enc(h.DisplayName)).Append("</div>");
         sb.Append("<div class=\"pid-sub\">");

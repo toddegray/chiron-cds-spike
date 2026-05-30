@@ -29,31 +29,31 @@ public sealed class DiscoveryController : ControllerBase
             ["procedures"] = "Procedure?patient={{context.patientId}}",
         };
 
-    /// <summary>The four services Chiron advertises today.</summary>
+    /// <summary>The four CDS Hooks services advertised by this app.</summary>
     private static readonly IReadOnlyList<CdsServiceDescriptor> Services = new[]
     {
         new CdsServiceDescriptor(
             Hook: "patient-view",
             Id: PatientViewServiceId,
-            Title: "Chiron Clinical Reasoning — Patient View",
+            Title: "Clinical Reasoning — Patient View",
             Description: "Explainable CDS alerts at patient-view time. Every card carries its full derivation graph.",
             Prefetch: StandardPrefetch),
         new CdsServiceDescriptor(
             Hook: "order-select",
             Id: OrderSelectServiceId,
-            Title: "Chiron Clinical Reasoning — Order Select",
+            Title: "Clinical Reasoning — Order Select",
             Description: "Evaluates the patient's chart against the proposed draft orders during order entry. Surfaces drug-allergy, renal-dose, and Beers concerns inline.",
             Prefetch: StandardPrefetch),
         new CdsServiceDescriptor(
             Hook: "order-sign",
             Id: OrderSignServiceId,
-            Title: "Chiron Clinical Reasoning — Order Sign",
+            Title: "Clinical Reasoning — Order Sign",
             Description: "Final review at order signing. Surfaces any chart-wide alerts the clinician hasn't yet acknowledged.",
             Prefetch: StandardPrefetch),
         new CdsServiceDescriptor(
             Hook: "medication-prescribe",
             Id: MedicationPrescribeServiceId,
-            Title: "Chiron Clinical Reasoning — Medication Prescribe",
+            Title: "Clinical Reasoning — Medication Prescribe",
             Description: "Evaluates the prescription about to be issued against the patient's chart for drug-allergy, drug-drug, and renal-dose concerns.",
             Prefetch: StandardPrefetch),
     };

@@ -7,7 +7,7 @@ This is the script behind the Loom video. The two scenarios that *can* be driven
 - `dotnet run --project src/Chiron.Cds.Web` running locally.
 - A terminal with `curl` and `jq`.
 - A browser tab on `http://localhost:5099/cds-services` to show the discovery endpoint.
-- (For Scenario C only) a browser tab on the Oracle Health Code Console with the Chiron app's "Launch" button visible.
+- (For Scenario C only) a browser tab on the Oracle Health Code Console with the app's "Launch" button visible.
 
 ## Scenario A — Real Cerner data → real alert (≈ 30 s)
 
@@ -65,7 +65,7 @@ This is the script behind the Loom video. The two scenarios that *can* be driven
 
 Verified end-to-end against the real Cerner Code sandbox on 2026-05-21. Full evidence in [REAL_LAUNCH_VERIFICATION.md](REAL_LAUNCH_VERIFICATION.md). The walkthrough:
 
-1. "Now let's do this through the real EHR-initiated flow." Click **Launch** on the Chiron app tile in Oracle Health Code Console, or visit `https://localhost:5001/smart/launch?iss=https://fhir-ehr-code.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d` directly.
+1. "Now let's do this through the real EHR-initiated flow." Click **Launch** on the app tile in Oracle Health Code Console, or visit `https://localhost:5001/smart/launch?iss=https://fhir-ehr-code.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d` directly.
 
 2. Pick a patient at the Cerner sandbox patient picker (Fredrick SMART — the elderly male with PE + active conditions + lab results — is the best demo target). Authenticate at the CernerCare login. Approve scopes.
 

@@ -11,7 +11,7 @@ namespace Chiron.Cds.Web.IntegrationTests;
 /// </summary>
 public class PatientSearchRendererTests
 {
-    private const string NavBar = "<span class=\"brand\">Chiron</span>";
+    private const string NavBar = "<span class=\"brand\">CDS</span>";
 
     private static PatientSearchCriteria Empty => new(null, null, null, null);
     private static PatientSearchCriteria Name(string name) => new(name, null, null, null);

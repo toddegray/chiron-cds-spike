@@ -1,4 +1,4 @@
-# Chiron CDS Spike
+# CDS Spike
 
 > A clinician-facing **SMART on FHIR + CDS Hooks** application in **.NET 9 / ASP.NET Core**, running live against the **Epic on FHIR** sandbox. It pulls real patient charts, renders them in an EHR-style workflow, and surfaces **explainable** clinical-decision-support cards — every card carries its full derivation graph back to the source data.
 

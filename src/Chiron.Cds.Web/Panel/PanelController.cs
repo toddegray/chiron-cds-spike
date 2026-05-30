@@ -503,7 +503,7 @@ public sealed class PanelController : ControllerBase
         new(id, entry?.DisplayName ?? $"Patient {id}", entry?.AgeSex ?? string.Empty, entry?.DateOfBirth, entry?.Mrn);
 
     private static string NavBar() =>
-        "<span class=\"brand\">Chiron</span>"
+        "<span class=\"brand\">CDS</span>"
         + "<a href=\"/app/panel\">Panel</a>"
         + "<a href=\"/app/search\">Search</a>"
         + "<a href=\"/cds-services\">CDS Hooks</a>"

@@ -257,9 +257,9 @@ public class OrderEntryServiceUnitTests
         protected override IReadOnlyList<CdsCard> Cards { get; } = new[]
         {
             new CdsCard("Critical A", "critical",
-                new CdsCardSource("Chiron"), "stop A", "fp-a", Array.Empty<CdsCoding>()),
+                new CdsCardSource("CDS"), "stop A", "fp-a", Array.Empty<CdsCoding>()),
             new CdsCard("Critical B", "critical",
-                new CdsCardSource("Chiron"), "stop B", "fp-b", Array.Empty<CdsCoding>()),
+                new CdsCardSource("CDS"), "stop B", "fp-b", Array.Empty<CdsCoding>()),
         };
     }
 
@@ -268,7 +268,7 @@ public class OrderEntryServiceUnitTests
         protected override IReadOnlyList<CdsCard> Cards { get; } = new[]
         {
             new CdsCard("Critical Only", "critical",
-                new CdsCardSource("Chiron"), "stop", "fp", Array.Empty<CdsCoding>()),
+                new CdsCardSource("CDS"), "stop", "fp", Array.Empty<CdsCoding>()),
         };
     }
 

@@ -47,7 +47,7 @@ public class CdsHooksDiscoveryTests : IClassFixture<WebApplicationFactory<Progra
             svc.Prefetch.Should().NotBeNull();
             svc.Prefetch!.Should().ContainKey("patient");
             svc.Prefetch.Should().ContainKey("allergies",
-                because: "every Chiron service prefetches allergies — drug-allergy is on the hot path");
+                because: "every CDS service prefetches allergies — drug-allergy is on the hot path");
         }
     }
 

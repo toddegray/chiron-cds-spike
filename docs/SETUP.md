@@ -11,7 +11,7 @@ Already done for this spike. The current registration uses:
 
 | Field | Value |
 | --- | --- |
-| App name | Chiron CDS Spike |
+| App name | CDS Spike |
 | App type | Provider |
 | Client ID | `5df0b845-a970-4ce9-ad57-dd16e779bbbc` |
 | FHIR Spec | R4 |

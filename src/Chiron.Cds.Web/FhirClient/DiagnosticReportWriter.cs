@@ -12,7 +12,7 @@ namespace Chiron.Cds.Web.FhirClient;
 /// </summary>
 public sealed class DiagnosticReportWriter
 {
-    private const string ChironSystem = "https://chiron.health/cds";
+    private const string CdsSystem = "https://chiron.health/cds";
     private readonly ILogger<DiagnosticReportWriter> _log;
 
     public DiagnosticReportWriter(ILogger<DiagnosticReportWriter> log)
@@ -45,14 +45,14 @@ public sealed class DiagnosticReportWriter
         {
             new("http://terminology.hl7.org/CodeSystem/v2-0074", "OTH", "Other", text: null)
         },
-        Code = new CodeableConcept(ChironSystem, alert.RuleId, alert.Message, text: null),
+        Code = new CodeableConcept(CdsSystem, alert.RuleId, alert.Message, text: null),
         Subject = new ResourceReference($"Patient/{patientId}"),
         Effective = new FhirDateTime(DateTimeOffset.UtcNow),
         Issued = DateTimeOffset.UtcNow,
         Conclusion = alert.Explain(),
         Identifier = new List<Identifier>
         {
-            new Identifier { System = ChironSystem + "/fingerprint", Value = alert.Fingerprint },
+            new Identifier { System = CdsSystem + "/fingerprint", Value = alert.Fingerprint },
         },
     };
 }

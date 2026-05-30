@@ -65,7 +65,7 @@ public class OrderEntryRendererTests
     public void Blocked_Status_Renders_Warning_Banner_And_Acknowledge_Checkbox()
     {
         var card = new CdsCard("Critical interaction", "critical",
-            new CdsCardSource("Chiron"), "Stop.", "fp-critical", Array.Empty<CdsCoding>());
+            new CdsCardSource("CDS"), "Stop.", "fp-critical", Array.Empty<CdsCoding>());
         var html = OrderEntryRenderer.Render(
             View(OrderEntryStatus.Blocked,
                 cards: new[] { card },
@@ -86,9 +86,9 @@ public class OrderEntryRendererTests
     public void Two_Unacked_Critical_Cards_Render_Pluralised_Button_Label()
     {
         var c1 = new CdsCard("Critical A", "critical",
-            new CdsCardSource("Chiron"), "Stop A.", "fp-a", Array.Empty<CdsCoding>());
+            new CdsCardSource("CDS"), "Stop A.", "fp-a", Array.Empty<CdsCoding>());
         var c2 = new CdsCard("Critical B", "critical",
-            new CdsCardSource("Chiron"), "Stop B.", "fp-b", Array.Empty<CdsCoding>());
+            new CdsCardSource("CDS"), "Stop B.", "fp-b", Array.Empty<CdsCoding>());
         var html = OrderEntryRenderer.Render(
             View(OrderEntryStatus.Blocked, cards: new[] { c1, c2 }),
             Hdr);
@@ -100,7 +100,7 @@ public class OrderEntryRendererTests
     public void Already_Acknowledged_Critical_Card_Renders_Checked_Checkbox_And_Plain_Sign_Button()
     {
         var card = new CdsCard("Critical interaction", "critical",
-            new CdsCardSource("Chiron"), "Stop.", "fp-critical", Array.Empty<CdsCoding>());
+            new CdsCardSource("CDS"), "Stop.", "fp-critical", Array.Empty<CdsCoding>());
         var ack = new HashSet<string>(StringComparer.Ordinal) { "fp-critical" };
         var html = OrderEntryRenderer.Render(
             View(OrderEntryStatus.Blocked, cards: new[] { card }, acknowledged: ack),
@@ -118,7 +118,7 @@ public class OrderEntryRendererTests
     {
         // Critical card 'fp-shown' is on screen; ack 'fp-gone' has no
         // matching card. The renderer should hidden-input only the latter.
-        var card = new CdsCard("Shown", "critical", new CdsCardSource("Chiron"), null, "fp-shown",
+        var card = new CdsCard("Shown", "critical", new CdsCardSource("CDS"), null, "fp-shown",
             Array.Empty<CdsCoding>());
         var ack = new HashSet<string>(StringComparer.Ordinal) { "fp-shown", "fp-gone" };
         var html = OrderEntryRenderer.Render(
@@ -194,7 +194,7 @@ public class OrderEntryRendererTests
     {
         var draft = OrderDraft.Empty with { DrugName = "<script>alert('xss')</script>", NoteToPharmacist = "<img src=x>" };
         var card = new CdsCard("<svg onload=alert(1)>", "critical",
-            new CdsCardSource("Chiron"), "<script>", "fp", Array.Empty<CdsCoding>());
+            new CdsCardSource("CDS"), "<script>", "fp", Array.Empty<CdsCoding>());
         var html = OrderEntryRenderer.Render(
             View(OrderEntryStatus.Blocked, draft: draft, cards: new[] { card }), Hdr);
         html.Should().NotContain("<script>alert");

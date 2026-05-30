@@ -23,7 +23,7 @@ This document records what was verified live against the Oracle Health Code sand
 
 ## What this proves
 
-Five of the six Chiron job-spec deliverables are exercised against real Cerner FHIR infrastructure today:
+Five of the six job-spec deliverables are exercised against real Cerner FHIR infrastructure today:
 
 1. **SMART on FHIR launch flow against a major EHR sandbox** — the entire flow from EHR launch button to our `/app` page works end-to-end against `authorization.cerner.com`. Only the very last step (reading FHIR resources with the granted token) is blocked, and the block is on Cerner's side.
 2. **OAuth 2.0 / OIDC authorisation with patient context** — token response contains a verified `patient` and `encounter` context, plus `id_token`. Real SMART v2 confidential-client flow.

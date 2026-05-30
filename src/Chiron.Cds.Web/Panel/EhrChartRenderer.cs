@@ -67,7 +67,7 @@ internal static class EhrChartRenderer
         sb.Append("</div>");   // grid
 
         var header = new ChartShell.Header(patientId, displayName, ageSex, dateOfBirth, mrn);
-        return ChartShell.Page(header, ChartShell.Tab.Summary, displayName + " — Chiron", sb.ToString(), ContentCss);
+        return ChartShell.Page(header, ChartShell.Tab.Summary, displayName, sb.ToString(), ContentCss);
     }
 
     private static void RenderProblems(StringBuilder sb, IReadOnlyList<Condition> conditions)

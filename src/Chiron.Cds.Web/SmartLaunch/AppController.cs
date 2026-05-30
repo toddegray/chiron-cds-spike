@@ -162,13 +162,13 @@ public sealed class AppController : ControllerBase
 
     private static string RenderAlertsHtml(SmartSession sess, IReadOnlyList<CdsCard> cards, PatientHeader? header) =>
         AlertHtmlRenderer.Render(
-            heading: "Chiron CDS",
+            heading: "CDS",
             subline: $"Session for patient {sess.PatientId} on tenant {sess.TenantId}.",
             cards: cards,
             patient: header);
 
     private static string RenderLandingHtml(string message) =>
-        $"<!doctype html><html><body><h1>Chiron CDS</h1><p>{WebEncode(message)}</p></body></html>";
+        $"<!doctype html><html><body><h1>CDS</h1><p>{WebEncode(message)}</p></body></html>";
 
     private static string WebEncode(string s) => System.Net.WebUtility.HtmlEncode(s);
 }

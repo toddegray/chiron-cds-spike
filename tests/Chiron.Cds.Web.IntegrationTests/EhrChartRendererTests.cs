@@ -28,7 +28,7 @@ public class EhrChartRendererTests
         Procedures: Array.Empty<Procedure>());
 
     private static CdsCard Card(string summary, string indicator = "info") =>
-        new(summary, indicator, new CdsCardSource("Chiron Clinical Reasoning"), Detail: "- supporting reason");
+        new(summary, indicator, new CdsCardSource("Clinical Reasoning"), Detail: "- supporting reason");
 
     private static string Render(
         EngineInputs inputs, IReadOnlyList<CdsCard> cards,
@@ -190,7 +190,7 @@ public class EhrChartRendererTests
     [Fact]
     public void Card_Without_Detail_Renders_No_Detail_Block()
     {
-        var card = new CdsCard("Brief alert", "info", new CdsCardSource("Chiron"));
+        var card = new CdsCard("Brief alert", "info", new CdsCardSource("CDS"));
         var html = Render(Inputs(), new[] { card });
         html.Should().Contain("Brief alert");
         html.Should().NotContain("<div class=\"cds-detail\">");

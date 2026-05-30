@@ -162,7 +162,7 @@ public class OrderEntryControllerOfflineTests : IClassFixture<OrderEntryControll
                 Cards: new[]
                 {
                     new CdsCard("Stubbed warning card", "warning",
-                        new CdsCardSource("Chiron"), "stub detail", "fp1", Array.Empty<CdsCoding>()),
+                        new CdsCardSource("CDS"), "stub detail", "fp1", Array.Empty<CdsCoding>()),
                 },
                 ChartError: null));
 
@@ -178,7 +178,7 @@ public class OrderEntryControllerOfflineTests : IClassFixture<OrderEntryControll
                         new[]
                         {
                             new CdsCard("Stubbed critical card", "critical",
-                                new CdsCardSource("Chiron"), "do not proceed", "fp-critical", Array.Empty<CdsCoding>()),
+                                new CdsCardSource("CDS"), "do not proceed", "fp-critical", Array.Empty<CdsCoding>()),
                         }),
                 "p-block" => OrderWriteResult.Ok("MR-stub-99"),
                 "p-no-session" => OrderWriteResult.NotAuthorised(),

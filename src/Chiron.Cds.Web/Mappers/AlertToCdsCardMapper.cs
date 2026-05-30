@@ -13,8 +13,8 @@ namespace Chiron.Cds.Web.Mappers;
 /// </summary>
 public sealed class AlertToCdsCardMapper
 {
-    private const string ChironSystem = "https://chiron.health/cds";
-    private const string ChironName = "Chiron Clinical Reasoning";
+    private const string CdsSystem = "https://chiron.health/cds";
+    private const string SourceLabel = "Clinical Reasoning";
 
     public CdsCard Map(Alert alert)
     {
@@ -24,14 +24,14 @@ public sealed class AlertToCdsCardMapper
             Summary: alert.Message,
             Indicator: MapIndicator(alert.Severity),
             Source: new CdsCardSource(
-                Label: ChironName,
+                Label: SourceLabel,
                 Url: "https://chiron.health/cds/" + alert.RuleId),
             Detail: RenderMarkdownDetail(alert),
             Uuid: alert.Fingerprint,
             OverrideReasons: alert.OverrideOptions
                 .Select(o => new CdsCoding(
                     Code: o,
-                    System: ChironSystem + "/override-reasons",
+                    System: CdsSystem + "/override-reasons",
                     Display: HumanizeOverride(o)))
                 .ToArray());
     }
