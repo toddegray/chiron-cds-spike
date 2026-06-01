@@ -60,21 +60,22 @@ public class AuthorizationServiceTests
     }
 
     [Fact]
-    public async Task BuildAuthorizeUri_Standalone_Swaps_Launch_For_LaunchPatient()
+    public async Task BuildAuthorizeUri_Standalone_Includes_All_Launch_Context_Scopes()
     {
         var harness = BuildHarness(includeIdToken: false);
         var tenant = new TenantConfig(
             Id: "test", DisplayName: "Test", ClientId: ClientId, ClientSecret: "secret",
             FhirBaseUrl: new Uri(FhirBase), FhirOpenBaseUrl: null,
-            Scopes: "launch openid fhirUser user/Patient.read");
+            Scopes: "openid fhirUser user/Patient.read");
 
         var uri = await harness.Service.BuildAuthorizeUriAsync(
             tenant, launchToken: null, "https://localhost/cb", CancellationToken.None);
 
         var scope = ScopeOf(uri).Split(' ');
+        scope.Should().Contain("launch",
+            because: "Epic binds Practitioner EHR context only when bare 'launch' is present alongside 'launch/patient'");
         scope.Should().Contain("launch/patient");
-        scope.Should().NotContain("launch",
-            because: "a standalone launch replaces bare 'launch' with 'launch/patient'");
+        scope.Should().Contain("launch/encounter");
         scope.Should().Contain("user/Patient.read");
     }
 

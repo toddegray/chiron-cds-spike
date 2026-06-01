@@ -65,18 +65,20 @@ public sealed class AuthorizationService
             RedirectUri: redirectUri,
             CreatedAt: DateTimeOffset.UtcNow));
 
-        // The launch-context scope must match the launch type: a standalone
-        // launch uses "launch/patient" (the app initiates and the EHR prompts
-        // for patient context), while an EHR launch uses bare "launch" paired
-        // with the launch token. Swap between them rather than only dropping
-        // "launch" — Epic standalone rejects the launch without "launch/patient".
+        // Launch-context scopes: standalone-clinician launch sends BOTH "launch"
+        // (binds the Practitioner EHR context) AND "launch/patient" (triggers the
+        // patient picker). Epic's reference standalone flow grants resource scopes
+        // only when both are present; with "launch/patient" alone, Epic silently
+        // strips user/* reads. EHR launch (with a launch token) sends "launch" and
+        // drops "launch/patient" — patient context comes from the launch token.
         var configuredScopes = tenant.Scopes
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .ToList();
         var effectiveScopes = string.IsNullOrEmpty(launchToken)
             ? string.Join(' ', configuredScopes
-                .Where(s => !string.Equals(s, "launch", StringComparison.Ordinal))
+                .Append("launch")
                 .Append("launch/patient")
+                .Append("launch/encounter")
                 .Distinct(StringComparer.Ordinal))
             : string.Join(' ', configuredScopes
                 .Where(s => !string.Equals(s, "launch/patient", StringComparison.Ordinal))
