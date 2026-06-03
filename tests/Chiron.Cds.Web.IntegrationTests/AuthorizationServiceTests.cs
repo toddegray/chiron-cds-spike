@@ -10,6 +10,7 @@ using Chiron.Cds.Web.Configuration;
 using Chiron.Cds.Web.SmartLaunch;
 using Chiron.Cds.Web.Tenancy;
 using FluentAssertions;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -60,7 +61,7 @@ public class AuthorizationServiceTests
     }
 
     [Fact]
-    public async Task BuildAuthorizeUri_Standalone_Includes_All_Launch_Context_Scopes()
+    public async Task BuildAuthorizeUri_Standalone_Uses_Configured_Scopes_Only()
     {
         var harness = BuildHarness(includeIdToken: false);
         var tenant = new TenantConfig(
@@ -72,10 +73,12 @@ public class AuthorizationServiceTests
             tenant, launchToken: null, "https://localhost/cb", CancellationToken.None);
 
         var scope = ScopeOf(uri).Split(' ');
-        scope.Should().Contain("launch",
-            because: "Epic binds Practitioner EHR context only when bare 'launch' is present alongside 'launch/patient'");
-        scope.Should().Contain("launch/patient");
-        scope.Should().Contain("launch/encounter");
+        scope.Should().NotContain("launch",
+            because: "Epic documents launch as an EHR-launch scope, not a standalone-login scope");
+        scope.Should().NotContain("launch/patient");
+        scope.Should().NotContain("launch/encounter");
+        scope.Should().Contain("openid");
+        scope.Should().Contain("fhirUser");
         scope.Should().Contain("user/Patient.read");
     }
 
@@ -86,7 +89,7 @@ public class AuthorizationServiceTests
         var tenant = new TenantConfig(
             Id: "test", DisplayName: "Test", ClientId: ClientId, ClientSecret: "secret",
             FhirBaseUrl: new Uri(FhirBase), FhirOpenBaseUrl: null,
-            Scopes: "launch/patient openid fhirUser user/Patient.read");
+            Scopes: "launch/patient launch/encounter openid fhirUser user/Patient.read");
 
         var uri = await harness.Service.BuildAuthorizeUriAsync(
             tenant, launchToken: "launch-xyz", "https://localhost/cb", CancellationToken.None);
@@ -95,7 +98,73 @@ public class AuthorizationServiceTests
         query["scope"].Split(' ').Should().Contain("launch");
         query["scope"].Should().NotContain("launch/patient",
             because: "an EHR launch (launch token present) uses bare 'launch'");
+        query["scope"].Should().NotContain("launch/encounter",
+            because: "encounter context comes from the EHR launch token");
         query["launch"].Should().Be("launch-xyz");
+    }
+
+    [Fact]
+    public async Task BuildAuthorizeUri_Standalone_PatientContext_Requests_LaunchPatient_And_PatientScopes()
+    {
+        var harness = BuildHarness(includeIdToken: false);
+        var tenant = new TenantConfig(
+            Id: "test", DisplayName: "Test", ClientId: ClientId, ClientSecret: "secret",
+            FhirBaseUrl: new Uri(FhirBase), FhirOpenBaseUrl: null,
+            Scopes: "openid fhirUser user/Patient.read user/Condition.read user/MedicationRequest.read");
+
+        var uri = await harness.Service.BuildAuthorizeUriAsync(
+            tenant, launchToken: null, "https://localhost/cb", CancellationToken.None,
+            requestPatientContext: true);
+
+        var scope = ScopeOf(uri).Split(' ');
+        scope.Should().Contain("launch/patient",
+            because: "SMART standalone patient selection is requested with launch/patient");
+        scope.Should().Contain("patient/Patient.read");
+        scope.Should().Contain("patient/Condition.read");
+        scope.Should().Contain("patient/MedicationRequest.read");
+        scope.Should().NotContain("user/Patient.read",
+            because: "patient-picker mode should use patient-scoped resource permissions");
+        QueryOf(uri).Should().NotContainKey("launch");
+    }
+
+    [Fact]
+    public async Task LaunchController_Without_Iss_Starts_Default_Tenant_Standalone_Login()
+    {
+        var harness = BuildHarness(includeIdToken: false);
+        var controller = new LaunchController(
+            BuildTenantRegistry(),
+            harness.Service,
+            Options.Create(new ChironOptions { BaseUrl = "https://localhost" }),
+            NullLogger<LaunchController>.Instance);
+
+        var result = await controller.Launch(
+            iss: null, launch: null, tenant: null, context: null, ct: CancellationToken.None);
+
+        var redirect = result.Should().BeOfType<RedirectResult>().Subject;
+        var query = QueryOf(new Uri(redirect.Url!));
+        query["client_id"].Should().Be(ClientId);
+        query["scope"].Should().Be("openid fhirUser user/Patient.read",
+            because: "the test default tenant's configured scopes should be used without adding standalone launch context");
+        query.Should().NotContainKey("launch");
+    }
+
+    [Fact]
+    public async Task LaunchController_PatientContext_Starts_Default_Tenant_PatientPicker_Login()
+    {
+        var harness = BuildHarness(includeIdToken: false);
+        var controller = new LaunchController(
+            BuildTenantRegistry(),
+            harness.Service,
+            Options.Create(new ChironOptions { BaseUrl = "https://localhost" }),
+            NullLogger<LaunchController>.Instance);
+
+        var result = await controller.Launch(
+            iss: null, launch: null, tenant: null, context: "patient", ct: CancellationToken.None);
+
+        var redirect = result.Should().BeOfType<RedirectResult>().Subject;
+        var query = QueryOf(new Uri(redirect.Url!));
+        query["scope"].Split(' ').Should().Contain("launch/patient");
+        query["scope"].Split(' ').Should().Contain("patient/Patient.read");
     }
 
     private static string ScopeOf(Uri uri) => QueryOf(uri)["scope"];
@@ -192,7 +261,7 @@ public class AuthorizationServiceTests
                     ClientId = ClientId,
                     ClientSecret = "secret",
                     FhirBaseUrl = FhirBase,
-                    Scopes = "launch openid",
+                    Scopes = "openid fhirUser user/Patient.read",
                 },
             },
         };

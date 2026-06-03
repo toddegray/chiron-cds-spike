@@ -1,6 +1,8 @@
 using System.Net.Mime;
+using System.Text.Json;
 
 using Chiron.Cds.Engine.Primitives;
+using Chiron.Cds.Web.CdsHooks;
 using Chiron.Cds.Web.CdsHooks.Models;
 using ReasoningEngine = Chiron.Cds.Engine.Engine;
 using Chiron.Cds.Engine;
@@ -29,6 +31,7 @@ public sealed class AppController : ControllerBase
     private readonly AlertToCdsCardMapper _cardMapper;
     private readonly DiagnosticReportWriter _reportWriter;
     private readonly IOverrideLog _overrideLog;
+    private readonly PatientViewService _patientViewHook;
     private readonly ILogger<AppController> _log;
 
     public AppController(
@@ -40,6 +43,7 @@ public sealed class AppController : ControllerBase
         AlertToCdsCardMapper cardMapper,
         DiagnosticReportWriter reportWriter,
         IOverrideLog overrideLog,
+        PatientViewService patientViewHook,
         ILogger<AppController> log)
     {
         _store = store;
@@ -50,6 +54,7 @@ public sealed class AppController : ControllerBase
         _cardMapper = cardMapper;
         _reportWriter = reportWriter;
         _overrideLog = overrideLog;
+        _patientViewHook = patientViewHook;
         _log = log;
     }
 
@@ -80,7 +85,7 @@ public sealed class AppController : ControllerBase
 
         try
         {
-            var (cards, _, header) = await EvaluateAsync(resolved, ct).ConfigureAwait(false);
+            var (cards, header) = await EvaluatePatientViewHookAsync(resolved, ct).ConfigureAwait(false);
             return Content(RenderAlertsHtml(resolved, cards, header), MediaTypeNames.Text.Html);
         }
         catch (Hl7.Fhir.Rest.FhirOperationException ex)
@@ -103,8 +108,48 @@ public sealed class AppController : ControllerBase
         var sess = _store.GetSession(session);
         if (sess is null) return NotFound("Session not found or expired.");
 
-        var (cards, _, _) = await EvaluateAsync(sess, ct).ConfigureAwait(false);
+        var (cards, _) = await EvaluatePatientViewHookAsync(sess, ct).ConfigureAwait(false);
         return Ok(new CdsHookResponse(cards));
+    }
+
+    private async Task<(IReadOnlyList<CdsCard> Cards, PatientHeader? Header)> EvaluatePatientViewHookAsync(
+        SmartSession sess, CancellationToken ct)
+    {
+        var tenant = _tenants.GetById(sess.TenantId);
+        var request = BuildPatientViewHookRequest(sess, tenant);
+        var evaluation = await _patientViewHook.EvaluateBundledAsync(request, ct).ConfigureAwait(false);
+        PatientHeader? header = null;
+        if (evaluation.Inputs is not null && evaluation.Chart is not null)
+        {
+            header = PatientHeader.From(
+                evaluation.Inputs,
+                displayName: PanelService.ChartName(evaluation.Chart.Patient, sess.PatientId),
+                dateOfBirth: evaluation.Chart.Patient.BirthDate,
+                mrn: PatientMrn.Extract(evaluation.Chart.Patient, tenant.MrnSystem));
+        }
+        return (evaluation.Cards, header);
+    }
+
+    private static CdsHookRequest BuildPatientViewHookRequest(SmartSession sess, TenantConfig tenant)
+    {
+        var expiresIn = Math.Max((int)(sess.ExpiresAt - DateTimeOffset.UtcNow).TotalSeconds, 0);
+        var context = JsonSerializer.SerializeToElement(new
+        {
+            patientId = sess.PatientId,
+            encounterId = sess.EncounterId,
+        });
+        return new CdsHookRequest(
+            Hook: "patient-view",
+            HookInstance: "smart-session-" + sess.SessionId,
+            FhirServer: tenant.FhirBaseUrl.AbsoluteUri.TrimEnd('/'),
+            FhirAuthorization: new CdsFhirAuthorization(
+                AccessToken: sess.AccessToken,
+                TokenType: "Bearer",
+                ExpiresIn: expiresIn,
+                Scope: string.Join(' ', sess.GrantedScopes),
+                Subject: null),
+            Context: context,
+            Prefetch: null);
     }
 
     [HttpPost("accept-alert")]
@@ -163,7 +208,7 @@ public sealed class AppController : ControllerBase
     private static string RenderAlertsHtml(SmartSession sess, IReadOnlyList<CdsCard> cards, PatientHeader? header) =>
         AlertHtmlRenderer.Render(
             heading: "CDS",
-            subline: $"Session for patient {sess.PatientId} on tenant {sess.TenantId}.",
+            subline: $"CDS Hooks patient-view for patient {sess.PatientId} on tenant {sess.TenantId}.",
             cards: cards,
             patient: header);
 

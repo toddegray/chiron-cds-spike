@@ -38,7 +38,7 @@ public class AppControllerOfflineTests : IClassFixture<AppControllerOfflineTests
         var resp = await client.GetAsync("/app?session=sess-bound&patient=p-query");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
-        body.Should().Contain("Session for patient p-session",
+        body.Should().Contain("CDS Hooks patient-view for patient p-session",
             because: "a patient bound to the launch token takes precedence over the query param");
         body.Should().NotContain("p-query",
             because: "the query patient is ignored when the session already carries one");
@@ -52,7 +52,7 @@ public class AppControllerOfflineTests : IClassFixture<AppControllerOfflineTests
         var resp = await client.GetAsync("/app?session=sess-empty&patient=p-query");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
-        body.Should().Contain("Session for patient p-query",
+        body.Should().Contain("CDS Hooks patient-view for patient p-query",
             because: "a user-scoped provider launch has no patient, so the query param selects one");
     }
 

@@ -100,7 +100,7 @@ public sealed class PatientViewService
             _overrideLog.RecordFire(alert);
             cards.Add(_cardMapper.Map(alert));
         }
-        return new BundledEvaluation(inputs, cards);
+        return new BundledEvaluation(inputs, chart, cards);
     }
 
     private static string? ReadPatientIdFromContext(JsonElement context)
@@ -197,7 +197,8 @@ public sealed class PatientViewService
 /// </summary>
 internal sealed record BundledEvaluation(
     Chiron.Cds.Web.Mappers.EngineInputs? Inputs,
+    PatientChart? Chart,
     IReadOnlyList<CdsCard> Cards)
 {
-    public static readonly BundledEvaluation Empty = new(Inputs: null, Cards: Array.Empty<CdsCard>());
+    public static readonly BundledEvaluation Empty = new(Inputs: null, Chart: null, Cards: Array.Empty<CdsCard>());
 }

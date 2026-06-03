@@ -35,17 +35,23 @@ public sealed class LaunchController : ControllerBase
     /// </summary>
     [HttpGet("launch")]
     public async Task<IActionResult> Launch(
-        [FromQuery] string iss,
+        [FromQuery] string? iss,
         [FromQuery] string? launch,
+        [FromQuery] string? tenant,
+        [FromQuery] string? context,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(iss)) return BadRequest("Missing iss parameter.");
-
-        var tenant = _tenants.GetByFhirBase(iss);
+        var tenantConfig = !string.IsNullOrWhiteSpace(iss)
+            ? _tenants.GetByFhirBase(iss)
+            : !string.IsNullOrWhiteSpace(tenant)
+                ? _tenants.GetById(tenant)
+                : _tenants.Default;
         var redirectUri = BuildRedirectUri();
 
-        var authorizeUri = await _auth.BuildAuthorizeUriAsync(tenant, launch, redirectUri, ct).ConfigureAwait(false);
-        _log.LogInformation("Redirecting to authorize endpoint for tenant {Tenant}.", tenant.Id);
+        var requestPatientContext = string.Equals(context, "patient", StringComparison.OrdinalIgnoreCase);
+        var authorizeUri = await _auth.BuildAuthorizeUriAsync(
+            tenantConfig, launch, redirectUri, ct, requestPatientContext).ConfigureAwait(false);
+        _log.LogInformation("Redirecting to authorize endpoint for tenant {Tenant}.", tenantConfig.Id);
         return Redirect(authorizeUri.AbsoluteUri);
     }
 

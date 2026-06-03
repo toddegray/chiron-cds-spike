@@ -46,7 +46,8 @@ public sealed class AuthorizationService
         TenantConfig tenant,
         string? launchToken,
         string redirectUri,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool requestPatientContext = false)
     {
         ArgumentNullException.ThrowIfNull(tenant);
         ArgumentException.ThrowIfNullOrEmpty(redirectUri);
@@ -65,23 +66,17 @@ public sealed class AuthorizationService
             RedirectUri: redirectUri,
             CreatedAt: DateTimeOffset.UtcNow));
 
-        // Launch-context scopes: standalone-clinician launch sends BOTH "launch"
-        // (binds the Practitioner EHR context) AND "launch/patient" (triggers the
-        // patient picker). Epic's reference standalone flow grants resource scopes
-        // only when both are present; with "launch/patient" alone, Epic silently
-        // strips user/* reads. EHR launch (with a launch token) sends "launch" and
+        // Standalone login uses only configured identity/resource scopes. EHR
+        // launch (with a launch token) sends "launch" and
         // drops "launch/patient" — patient context comes from the launch token.
         var configuredScopes = tenant.Scopes
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .ToList();
         var effectiveScopes = string.IsNullOrEmpty(launchToken)
-            ? string.Join(' ', configuredScopes
-                .Append("launch")
-                .Append("launch/patient")
-                .Append("launch/encounter")
-                .Distinct(StringComparer.Ordinal))
+            ? BuildStandaloneScopes(configuredScopes, requestPatientContext)
             : string.Join(' ', configuredScopes
                 .Where(s => !string.Equals(s, "launch/patient", StringComparison.Ordinal))
+                .Where(s => !string.Equals(s, "launch/encounter", StringComparison.Ordinal))
                 .Append("launch")
                 .Distinct(StringComparer.Ordinal));
 
@@ -104,6 +99,40 @@ public sealed class AuthorizationService
             "Built authorize URL for tenant {Tenant} (endpoint {Endpoint}).",
             tenant.Id, smart.AuthorizationEndpoint);
         return uri;
+    }
+
+    private static string BuildStandaloneScopes(IReadOnlyList<string> configuredScopes, bool requestPatientContext)
+    {
+        if (!requestPatientContext)
+            return string.Join(' ', configuredScopes.Distinct(StringComparer.Ordinal));
+
+        var scopes = configuredScopes
+            .Select(ToPatientContextScope)
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Append("openid")
+            .Append("fhirUser")
+            .Append("launch/patient")
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return string.Join(' ', scopes);
+    }
+
+    private static string? ToPatientContextScope(string scope)
+    {
+        if (string.Equals(scope, "openid", StringComparison.Ordinal)
+            || string.Equals(scope, "fhirUser", StringComparison.Ordinal)
+            || string.Equals(scope, "profile", StringComparison.Ordinal)
+            || string.Equals(scope, "online_access", StringComparison.Ordinal)
+            || string.Equals(scope, "offline_access", StringComparison.Ordinal)
+            || scope.StartsWith("patient/", StringComparison.Ordinal))
+        {
+            return scope;
+        }
+
+        if (scope.StartsWith("user/", StringComparison.Ordinal))
+            return "patient/" + scope["user/".Length..];
+
+        return null;
     }
 
     /// <summary>
