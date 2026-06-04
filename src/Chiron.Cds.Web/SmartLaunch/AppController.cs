@@ -15,9 +15,11 @@ using Microsoft.AspNetCore.Mvc;
 namespace Chiron.Cds.Web.SmartLaunch;
 
 /// <summary>
-/// Post-launch landing page. Renders alerts as inline HTML so the demo
-/// works without a separate SPA. The wire format under <c>/app/alerts</c>
-/// is JSON for the integration tests and curl.
+/// Post-launch landing for the SMART session. <c>GET /app</c> renders the
+/// patient chart inside the shared <see cref="ChartShell"/> (top bar, icon
+/// rail, tab strip) so the launch hands off into the same UI the rest of the
+/// app uses. <c>GET /app/alerts</c> is the CDS Hooks JSON wire format for
+/// integration tests and curl.
 /// </summary>
 [ApiController]
 [Route("app")]
@@ -85,8 +87,16 @@ public sealed class AppController : ControllerBase
 
         try
         {
-            var (cards, header) = await EvaluatePatientViewHookAsync(resolved, ct).ConfigureAwait(false);
-            return Content(RenderAlertsHtml(resolved, cards, header), MediaTypeNames.Text.Html);
+            var (inputs, cards, _, header) = await EvaluateForSessionAsync(resolved, ct).ConfigureAwait(false);
+            var html = EhrChartRenderer.Render(
+                patientId: resolved.PatientId,
+                displayName: header.DisplayName,
+                ageSex: header.AgeSex,
+                dateOfBirth: header.DateOfBirth,
+                mrn: header.Mrn,
+                inputs: inputs,
+                cards: cards);
+            return Content(html, MediaTypeNames.Text.Html);
         }
         catch (Hl7.Fhir.Rest.FhirOperationException ex)
         {
@@ -108,26 +118,10 @@ public sealed class AppController : ControllerBase
         var sess = _store.GetSession(session);
         if (sess is null) return NotFound("Session not found or expired.");
 
-        var (cards, _) = await EvaluatePatientViewHookAsync(sess, ct).ConfigureAwait(false);
-        return Ok(new CdsHookResponse(cards));
-    }
-
-    private async Task<(IReadOnlyList<CdsCard> Cards, PatientHeader? Header)> EvaluatePatientViewHookAsync(
-        SmartSession sess, CancellationToken ct)
-    {
         var tenant = _tenants.GetById(sess.TenantId);
         var request = BuildPatientViewHookRequest(sess, tenant);
         var evaluation = await _patientViewHook.EvaluateBundledAsync(request, ct).ConfigureAwait(false);
-        PatientHeader? header = null;
-        if (evaluation.Inputs is not null && evaluation.Chart is not null)
-        {
-            header = PatientHeader.From(
-                evaluation.Inputs,
-                displayName: PanelService.ChartName(evaluation.Chart.Patient, sess.PatientId),
-                dateOfBirth: evaluation.Chart.Patient.BirthDate,
-                mrn: PatientMrn.Extract(evaluation.Chart.Patient, tenant.MrnSystem));
-        }
-        return (evaluation.Cards, header);
+        return Ok(new CdsHookResponse(evaluation.Cards));
     }
 
     private static CdsHookRequest BuildPatientViewHookRequest(SmartSession sess, TenantConfig tenant)
@@ -165,7 +159,7 @@ public sealed class AppController : ControllerBase
         if (sess is null) return NotFound("Session not found or expired.");
 
         var tenant = _tenants.GetById(sess.TenantId);
-        var (_, alerts, _) = await EvaluateForSessionAsync(sess, ct).ConfigureAwait(false);
+        var (_, _, alerts, _) = await EvaluateForSessionAsync(sess, ct).ConfigureAwait(false);
         var alert = alerts.FirstOrDefault(a => a.Fingerprint == fingerprint);
         if (alert is null) return NotFound("Alert with that fingerprint not found in current evaluation.");
 
@@ -174,14 +168,7 @@ public sealed class AppController : ControllerBase
         return Ok(new { reportId, fingerprint = alert.Fingerprint });
     }
 
-    private async Task<(IReadOnlyList<CdsCard> Cards, int AlertCount, PatientHeader? Header)> EvaluateAsync(
-        SmartSession sess, CancellationToken ct)
-    {
-        var (cards, alerts, header) = await EvaluateForSessionAsync(sess, ct).ConfigureAwait(false);
-        return (cards, alerts.Count, header);
-    }
-
-    private async Task<(IReadOnlyList<CdsCard> Cards, IReadOnlyList<Alert> Alerts, PatientHeader Header)> EvaluateForSessionAsync(
+    private async Task<(EngineInputs Inputs, IReadOnlyList<CdsCard> Cards, IReadOnlyList<Alert> Alerts, PatientHeader Header)> EvaluateForSessionAsync(
         SmartSession sess, CancellationToken ct)
     {
         var tenant = _tenants.GetById(sess.TenantId);
@@ -202,15 +189,8 @@ public sealed class AppController : ControllerBase
             dateOfBirth: chart.Patient.BirthDate,
             mrn: PatientMrn.Extract(chart.Patient, tenant.MrnSystem));
         _log.LogInformation("Evaluated session {Session}: {Count} alerts.", sess.SessionId, result.Alerts.Count);
-        return (cards, result.Alerts, header);
+        return (inputs, cards, result.Alerts, header);
     }
-
-    private static string RenderAlertsHtml(SmartSession sess, IReadOnlyList<CdsCard> cards, PatientHeader? header) =>
-        AlertHtmlRenderer.Render(
-            heading: "CDS",
-            subline: $"CDS Hooks patient-view for patient {sess.PatientId} on tenant {sess.TenantId}.",
-            cards: cards,
-            patient: header);
 
     private static string RenderLandingHtml(string message) =>
         $"<!doctype html><html><body><h1>CDS</h1><p>{WebEncode(message)}</p></body></html>";

@@ -38,7 +38,7 @@ public class AppControllerOfflineTests : IClassFixture<AppControllerOfflineTests
         var resp = await client.GetAsync("/app?session=sess-bound&patient=p-query");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
-        body.Should().Contain("CDS Hooks patient-view for patient p-session",
+        body.Should().Contain("Patient p-session",
             because: "a patient bound to the launch token takes precedence over the query param");
         body.Should().NotContain("p-query",
             because: "the query patient is ignored when the session already carries one");
@@ -52,7 +52,7 @@ public class AppControllerOfflineTests : IClassFixture<AppControllerOfflineTests
         var resp = await client.GetAsync("/app?session=sess-empty&patient=p-query");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
-        body.Should().Contain("CDS Hooks patient-view for patient p-query",
+        body.Should().Contain("Patient p-query",
             because: "a user-scoped provider launch has no patient, so the query param selects one");
     }
 
@@ -83,6 +83,22 @@ public class AppControllerOfflineTests : IClassFixture<AppControllerOfflineTests
         body.Should().Contain("HTTP 403 (Forbidden)");
         body.Should().Contain("Patient: p-403",
             because: "the diagnostic surfaces the query-resolved patient, not the empty launch patient");
+    }
+
+    [Fact]
+    public async Task Alerts_Endpoint_Returns_Cds_Hook_Response_For_Session()
+    {
+        SeedSession("sess-alerts", patientId: "p-alerts");
+        using var client = _factory.CreateClient();
+        var resp = await client.GetAsync("/app/alerts?session=sess-alerts");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await resp.Content.ReadAsStringAsync();
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        var cards = doc.RootElement.GetProperty("cards");
+        cards.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Array,
+            because: "the CDS Hooks JSON wire format wraps rule alerts in a `cards` array");
+        cards.GetArrayLength().Should().BeGreaterThan(0,
+            because: "the stub chart (46y female, empty history) triggers preventive-care rules");
     }
 
     private void SeedSession(string sessionId, string patientId)
